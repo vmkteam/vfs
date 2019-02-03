@@ -1,0 +1,68 @@
+run:
+  # default concurrency is a available CPU number
+  concurrency: 4
+
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  deadline: 30m
+
+  # exit code when at least one issue was found, default is 1
+  issues-exit-code: 1
+
+  # include test files or not, default is true
+  tests: true
+
+output:
+  # colored-line-number|line-number|json|tab|checkstyle|code-climate, default is "colored-line-number"
+  format: colored-line-number
+
+  # print lines of code with issue, default is true
+  print-issued-lines: true
+
+  # print linter name in the end of issue text, default is true
+  print-linter-name: true
+
+linters-settings:
+  goimports:
+    # put imports beginning with prefix after 3rd-party packages;
+    # it's a comma-separated list of prefixes
+    local-prefixes: loadersrv
+  gocritic:
+    # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint` run to see all tags and checks.
+    # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
+    enabled-tags:
+      - performance
+      - opinionated
+      - diagnostic
+      - style
+      - experimental
+
+    disabled-checks:
+      - importShadow # очень много в коде это делается
+      - ifElseChain # не так важно
+      - singleCaseSwitch # не так важно
+      - commentFormatting # не так важно
+      - hugeParam # в некоторых случаях нарушает читабельность + преждевременная оптимизация
+      - commentedOutCode # раздражает при локально разработке. может быть есть возможность отключить локально, но включить на ci/cd?
+
+    settings:
+      rangeValCopy:
+        sizeThreshold: 200 # немного завышенная планка, но иногда линтер должен помочь не копировать много данных
+
+linters:
+  enable-all: true
+  disable-all: false
+  disable:
+    - errcheck # We do not check errors in case 'go func() error'
+    - depguard # may be enabled?
+    - gochecknoglobals # may be enabled?
+    - gochecknoinits # may be enabled?
+    - gocyclo # may be enabled?
+    - lll # Its not a problem?
+    - maligned # Right not we do not want to optimize memory usage.
+    - misspell # Not so many documentation as all.
+    - golint # Too many reports of Id -> ID, Url -> URL and so on.
+    - nakedret # We use this language feature
+    - scopelint # We use closures
+    #- gocritic
+    - prealloc
+    - gosec
