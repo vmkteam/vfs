@@ -1,0 +1,8 @@
+<Project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Name>vfs.mfd</Name>
+    <PackageNames>
+        <string>vfs</string>
+    </PackageNames>
+    <Languages></Languages>
+    <GoPGVer>9</GoPGVer>
+</Project>
