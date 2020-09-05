@@ -5,7 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"vfs"
+
+	"github.com/vmkteam/vfs"
 )
 
 func ExampleFileHash() {

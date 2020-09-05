@@ -11,9 +11,9 @@ import (
 )
 
 var RPC = struct {
-	Service struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload string }
+	Service struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload, UrlByHash, UrlByHashList string }
 }{
-	Service: struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload string }{
+	Service: struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload, UrlByHash, UrlByHashList string }{
 		GetFolder:            "getfolder",
 		GetFolderBranch:      "getfolderbranch",
 		GetFiles:             "getfiles",
@@ -30,6 +30,8 @@ var RPC = struct {
 		MoveFolder:           "movefolder",
 		RenameFolder:         "renamefolder",
 		HelpUpload:           "helpupload",
+		UrlByHash:            "urlbyhash",
+		UrlByHashList:        "urlbyhashlist",
 	},
 }
 
@@ -63,6 +65,39 @@ func (Service) SMD() smd.ServiceInfo {
 						"parentId": {
 							Description: ``,
 							Type:        smd.Integer,
+						},
+						"folders": {
+							Description: ``,
+							Type:        smd.Array,
+							Items: map[string]string{
+								"$ref": "#/definitions/Folder",
+							},
+						},
+					},
+					Definitions: map[string]smd.Definition{
+						"Folder": {
+							Type: "object",
+							Properties: map[string]smd.Property{
+								"id": {
+									Description: ``,
+									Type:        smd.Integer,
+								},
+								"name": {
+									Description: ``,
+									Type:        smd.String,
+								},
+								"parentId": {
+									Description: ``,
+									Type:        smd.Integer,
+								},
+								"folders": {
+									Description: ``,
+									Type:        smd.Array,
+									Items: map[string]string{
+										"$ref": "#/definitions/Folder",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -102,6 +137,13 @@ func (Service) SMD() smd.ServiceInfo {
 								"parentId": {
 									Description: ``,
 									Type:        smd.Integer,
+								},
+								"folders": {
+									Description: ``,
+									Type:        smd.Array,
+									Items: map[string]string{
+										"$ref": "#/definitions/Folder",
+									},
 								},
 							},
 						},
@@ -160,59 +202,63 @@ func (Service) SMD() smd.ServiceInfo {
 							Type: "object",
 							Properties: map[string]smd.Property{
 								"id": {
-									Description: `$file->fileId,`,
+									Description: ``,
 									Type:        smd.Integer,
 								},
 								"name": {
-									Description: `$file->title,`,
+									Description: ``,
 									Type:        smd.String,
 								},
 								"path": {
-									Description: `Site::GetWebPath( VfsUtility::RootDir ) . $file->path,`,
+									Description: ``,
+									Type:        smd.String,
+								},
+								"previewpath": {
+									Description: ``,
 									Type:        smd.String,
 								},
 								"relpath": {
-									Description: `basename( $file->path, '.' . array_pop( $filePaths ) ),`,
+									Description: ``,
 									Type:        smd.String,
 								},
 								"size": {
-									Description: `$file->fileSize,`,
+									Description: ``,
 									Type:        smd.Integer,
 								},
 								"sizeH": {
-									Description: `self::HumanSize( $file->fileSize, 2 ),`,
+									Description: ``,
 									Type:        smd.Array,
 									Items: map[string]string{
 										"type": smd.String,
 									},
 								},
 								"date": {
-									Description: `$file->createdAt->DefaultFormat(),`,
+									Description: ``,
 									Type:        smd.String,
 								},
 								"type": {
-									Description: `mb_strimwidth( $file->mimeType, 0, 32, '...' ),`,
+									Description: ``,
 									Type:        smd.String,
 								},
 								"extension": {
-									Description: `DirectoryInfo::GetExtension( $file->path ),`,
+									Description: ``,
 									Type:        smd.String,
 								},
 								"params": {
-									Description: `$file->params,`,
+									Description: ``,
 									Ref:         "#/definitions/FileParams",
 									Type:        smd.Object,
 								},
 								"shortpath": {
-									Description: `$file->path,`,
+									Description: ``,
 									Type:        smd.String,
 								},
 								"width": {
-									Description: `ArrayHelper::GetValue( $file->params, 'width', null ),`,
+									Description: ``,
 									Type:        smd.Integer,
 								},
 								"height": {
-									Description: `ArrayHelper::GetValue( $file->params, 'height', null ),`,
+									Description: ``,
 									Type:        smd.Integer,
 								},
 							},
@@ -279,6 +325,9 @@ func (Service) SMD() smd.ServiceInfo {
 					Optional:    false,
 					Type:        smd.Boolean,
 				},
+				Errors: map[int]string{
+					400: "empty file ids",
+				},
 			},
 			"DeleteFiles": {
 				Description: `Delete Files`,
@@ -303,13 +352,16 @@ func (Service) SMD() smd.ServiceInfo {
 				Description: `Rename File on Server`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "fileIds",
+						Name:        "fileId",
 						Optional:    false,
 						Description: ``,
-						Type:        smd.Array,
-						Items: map[string]string{
-							"type": smd.Integer,
-						},
+						Type:        smd.Integer,
+					},
+					{
+						Name:        "name",
+						Optional:    false,
+						Description: ``,
+						Type:        smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
@@ -334,73 +386,47 @@ func (Service) SMD() smd.ServiceInfo {
 					Type:        smd.Object,
 					Properties: map[string]smd.Property{
 						"id": {
-							Description: `$file->fileId,`,
+							Description: ``,
 							Type:        smd.Integer,
 						},
 						"name": {
-							Description: `$file->title,`,
+							Description: ``,
 							Type:        smd.String,
 						},
-						"path": {
-							Description: `Site::GetWebPath( VfsUtility::RootDir ) . $file->path,`,
-							Type:        smd.String,
-						},
-						"relpath": {
-							Description: `basename( $file->path, '.' . array_pop( $filePaths ) ),`,
-							Type:        smd.String,
-						},
-						"size": {
-							Description: `$file->fileSize,`,
+						"parentId": {
+							Description: ``,
 							Type:        smd.Integer,
 						},
-						"sizeH": {
-							Description: `self::HumanSize( $file->fileSize, 2 ),`,
+						"folders": {
+							Description: ``,
 							Type:        smd.Array,
 							Items: map[string]string{
-								"type": smd.String,
+								"$ref": "#/definitions/Folder",
 							},
-						},
-						"date": {
-							Description: `$file->createdAt->DefaultFormat(),`,
-							Type:        smd.String,
-						},
-						"type": {
-							Description: `mb_strimwidth( $file->mimeType, 0, 32, '...' ),`,
-							Type:        smd.String,
-						},
-						"extension": {
-							Description: `DirectoryInfo::GetExtension( $file->path ),`,
-							Type:        smd.String,
-						},
-						"params": {
-							Description: `$file->params,`,
-							Ref:         "#/definitions/FileParams",
-							Type:        smd.Object,
-						},
-						"shortpath": {
-							Description: `$file->path,`,
-							Type:        smd.String,
-						},
-						"width": {
-							Description: `ArrayHelper::GetValue( $file->params, 'width', null ),`,
-							Type:        smd.Integer,
-						},
-						"height": {
-							Description: `ArrayHelper::GetValue( $file->params, 'height', null ),`,
-							Type:        smd.Integer,
 						},
 					},
 					Definitions: map[string]smd.Definition{
-						"FileParams": {
+						"Folder": {
 							Type: "object",
 							Properties: map[string]smd.Property{
-								"width": {
+								"id": {
 									Description: ``,
 									Type:        smd.Integer,
 								},
-								"height": {
+								"name": {
+									Description: ``,
+									Type:        smd.String,
+								},
+								"parentId": {
 									Description: ``,
 									Type:        smd.Integer,
+								},
+								"folders": {
+									Description: ``,
+									Type:        smd.Array,
+									Items: map[string]string{
+										"$ref": "#/definitions/Folder",
+									},
 								},
 							},
 						},
@@ -423,73 +449,47 @@ func (Service) SMD() smd.ServiceInfo {
 					Type:        smd.Object,
 					Properties: map[string]smd.Property{
 						"id": {
-							Description: `$file->fileId,`,
+							Description: ``,
 							Type:        smd.Integer,
 						},
 						"name": {
-							Description: `$file->title,`,
+							Description: ``,
 							Type:        smd.String,
 						},
-						"path": {
-							Description: `Site::GetWebPath( VfsUtility::RootDir ) . $file->path,`,
-							Type:        smd.String,
-						},
-						"relpath": {
-							Description: `basename( $file->path, '.' . array_pop( $filePaths ) ),`,
-							Type:        smd.String,
-						},
-						"size": {
-							Description: `$file->fileSize,`,
+						"parentId": {
+							Description: ``,
 							Type:        smd.Integer,
 						},
-						"sizeH": {
-							Description: `self::HumanSize( $file->fileSize, 2 ),`,
+						"folders": {
+							Description: ``,
 							Type:        smd.Array,
 							Items: map[string]string{
-								"type": smd.String,
+								"$ref": "#/definitions/Folder",
 							},
-						},
-						"date": {
-							Description: `$file->createdAt->DefaultFormat(),`,
-							Type:        smd.String,
-						},
-						"type": {
-							Description: `mb_strimwidth( $file->mimeType, 0, 32, '...' ),`,
-							Type:        smd.String,
-						},
-						"extension": {
-							Description: `DirectoryInfo::GetExtension( $file->path ),`,
-							Type:        smd.String,
-						},
-						"params": {
-							Description: `$file->params,`,
-							Ref:         "#/definitions/FileParams",
-							Type:        smd.Object,
-						},
-						"shortpath": {
-							Description: `$file->path,`,
-							Type:        smd.String,
-						},
-						"width": {
-							Description: `ArrayHelper::GetValue( $file->params, 'width', null ),`,
-							Type:        smd.Integer,
-						},
-						"height": {
-							Description: `ArrayHelper::GetValue( $file->params, 'height', null ),`,
-							Type:        smd.Integer,
 						},
 					},
 					Definitions: map[string]smd.Definition{
-						"FileParams": {
+						"Folder": {
 							Type: "object",
 							Properties: map[string]smd.Property{
-								"width": {
+								"id": {
 									Description: ``,
 									Type:        smd.Integer,
 								},
-								"height": {
+								"name": {
+									Description: ``,
+									Type:        smd.String,
+								},
+								"parentId": {
 									Description: ``,
 									Type:        smd.Integer,
+								},
+								"folders": {
+									Description: ``,
+									Type:        smd.Array,
+									Items: map[string]string{
+										"$ref": "#/definitions/Folder",
+									},
 								},
 							},
 						},
@@ -521,6 +521,13 @@ func (Service) SMD() smd.ServiceInfo {
 								"parentId": {
 									Description: ``,
 									Type:        smd.Integer,
+								},
+								"folders": {
+									Description: ``,
+									Type:        smd.Array,
+									Items: map[string]string{
+										"$ref": "#/definitions/Folder",
+									},
 								},
 							},
 						},
@@ -670,6 +677,83 @@ func (Service) SMD() smd.ServiceInfo {
 					},
 				},
 			},
+			"UrlByHash": {
+				Description: `Get Url by hash, namespace and media type`,
+				Parameters: []smd.JSONSchema{
+					{
+						Name:        "hash",
+						Optional:    false,
+						Description: `media hash`,
+						Type:        smd.String,
+					},
+					{
+						Name:        "namespace",
+						Optional:    false,
+						Description: `media namespace`,
+						Type:        smd.String,
+					},
+					{
+						Name:        "mediaType",
+						Optional:    false,
+						Description: `type of media (possible values: small, medium, big, empty string)`,
+						Type:        smd.String,
+					},
+				},
+				Returns: smd.JSONSchema{
+					Description: ``,
+					Optional:    false,
+					Type:        smd.String,
+				},
+			},
+			"UrlByHashList": {
+				Description: `Get Urls by hash list, with namespace and media type`,
+				Parameters: []smd.JSONSchema{
+					{
+						Name:        "hashList",
+						Optional:    false,
+						Description: `media hash list`,
+						Type:        smd.Array,
+						Items: map[string]string{
+							"type": smd.String,
+						},
+					},
+					{
+						Name:        "namespace",
+						Optional:    false,
+						Description: `media namespace`,
+						Type:        smd.String,
+					},
+					{
+						Name:        "mediaType",
+						Optional:    false,
+						Description: `type of media (possible values: small, medium, big, empty string)`,
+						Type:        smd.String,
+					},
+				},
+				Returns: smd.JSONSchema{
+					Description: ``,
+					Optional:    false,
+					Type:        smd.Array,
+					Items: map[string]string{
+						"$ref": "#/definitions/UrlByHashListResponse",
+					},
+					Definitions: map[string]smd.Definition{
+						"UrlByHashListResponse": {
+							Type: "object",
+							Properties: map[string]smd.Property{
+								"hash": {
+									Description: ``,
+									Type:        smd.String,
+								},
+								"webPath": {
+									Description: ``,
+									Type:        smd.String,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -794,8 +878,8 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 
 	case RPC.Service.MoveFiles:
 		var args = struct {
-			FileIds             []int `json:"fileIds"`
-			DestinationFolderId int   `json:"destinationFolderId"`
+			FileIds             []int64 `json:"fileIds"`
+			DestinationFolderId int     `json:"destinationFolderId"`
 		}{}
 
 		if zenrpc.IsArray(params) {
@@ -814,7 +898,7 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 
 	case RPC.Service.DeleteFiles:
 		var args = struct {
-			FileIds []int `json:"fileIds"`
+			FileIds []int64 `json:"fileIds"`
 		}{}
 
 		if zenrpc.IsArray(params) {
@@ -833,11 +917,12 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 
 	case RPC.Service.SetFilePhysicalName:
 		var args = struct {
-			FileIds []int `json:"fileIds"`
+			FileId int    `json:"fileId"`
+			Name   string `json:"name"`
 		}{}
 
 		if zenrpc.IsArray(params) {
-			if params, err = zenrpc.ConvertToObject([]string{"fileIds"}, params); err != nil {
+			if params, err = zenrpc.ConvertToObject([]string{"fileId", "name"}, params); err != nil {
 				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
 			}
 		}
@@ -848,7 +933,7 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 			}
 		}
 
-		resp.Set(s.SetFilePhysicalName(ctx, args.FileIds))
+		resp.Set(s.SetFilePhysicalName(ctx, args.FileId, args.Name))
 
 	case RPC.Service.SearchFolderByFileId:
 		var args = struct {
@@ -992,6 +1077,48 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 
 	case RPC.Service.HelpUpload:
 		resp.Set(s.HelpUpload())
+
+	case RPC.Service.UrlByHash:
+		var args = struct {
+			Hash      string `json:"hash"`
+			Namespace string `json:"namespace"`
+			MediaType string `json:"mediaType"`
+		}{}
+
+		if zenrpc.IsArray(params) {
+			if params, err = zenrpc.ConvertToObject([]string{"hash", "namespace", "mediaType"}, params); err != nil {
+				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
+			}
+		}
+
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &args); err != nil {
+				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
+			}
+		}
+
+		resp.Set(s.UrlByHash(ctx, args.Hash, args.Namespace, args.MediaType))
+
+	case RPC.Service.UrlByHashList:
+		var args = struct {
+			HashList  []string `json:"hashList"`
+			Namespace string   `json:"namespace"`
+			MediaType string   `json:"mediaType"`
+		}{}
+
+		if zenrpc.IsArray(params) {
+			if params, err = zenrpc.ConvertToObject([]string{"hashList", "namespace", "mediaType"}, params); err != nil {
+				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
+			}
+		}
+
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &args); err != nil {
+				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
+			}
+		}
+
+		resp.Set(s.UrlByHashList(ctx, args.HashList, args.Namespace, args.MediaType))
 
 	default:
 		resp = zenrpc.NewResponseError(nil, zenrpc.MethodNotFound, "", nil)

@@ -3,9 +3,9 @@ package db
 import (
 	"fmt"
 
-	"github.com/go-pg/pg/orm"
-	"github.com/go-pg/pg/types"
-	"github.com/go-pg/pg/urlvalues"
+	"github.com/go-pg/pg/v9/orm"
+	"github.com/go-pg/pg/v9/types"
+	"github.com/go-pg/urlstruct"
 )
 
 const (
@@ -23,8 +23,12 @@ var (
 type SortDirection string
 
 const (
-	SortAsc  SortDirection = "asc"
-	SortDesc SortDirection = "desc"
+	SortAsc            SortDirection = "asc"
+	SortAscNullsFirst  SortDirection = "asc nulls first"
+	SortAscNullsLast   SortDirection = "asc nulls last"
+	SortDesc           SortDirection = "desc"
+	SortDescNullsFirst SortDirection = "desc nulls first"
+	SortDescNullsLast  SortDirection = "desc nulls last"
 )
 
 type SortField struct {
@@ -47,7 +51,7 @@ type OpFunc func(query *orm.Query)
 func WithSort(fields ...SortField) OpFunc {
 	return func(query *orm.Query) {
 		for _, f := range fields {
-			query.OrderExpr("? ?", types.F(f.Column), types.Q(f.Direction))
+			query.OrderExpr("? ?", types.Ident(f.Column), types.Safe(f.Direction))
 		}
 	}
 }
@@ -93,14 +97,14 @@ type Pager struct {
 }
 
 // Pager gets orm.Pages for go-pg
-func (p Pager) Pager() *urlvalues.Pager {
+func (p Pager) Pager() *urlstruct.Pager {
 	maxLimit := p.PageSize
 	if maxLimit > defaultNoLimit {
 		maxLimit = defaultNoLimit
 	} else if maxLimit == 0 {
 		maxLimit = defaultMaxLimit
 	}
-	pager := &urlvalues.Pager{
+	pager := &urlstruct.Pager{
 		Limit:    p.PageSize,
 		MaxLimit: maxLimit,
 	}
@@ -129,5 +133,15 @@ func (p Pager) String() (opts string) {
 
 // Apply applies options to go-pg orm
 func (p Pager) Apply(query *orm.Query) *orm.Query {
-	return query.Apply(p.Pager().Pagination)
+	pager := p.Pager()
+	limit := pager.GetLimit()
+	offset := pager.GetOffset()
+
+	if limit != 0 {
+		query = query.Limit(limit)
+	}
+	if offset != 0 {
+		query = query.Offset(offset)
+	}
+	return query
 }

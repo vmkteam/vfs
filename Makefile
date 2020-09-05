@@ -1,5 +1,7 @@
-PKG := `go list vfs/... | grep -v /vendor/`
+NAME := vfs
 MAIN := cmd/vfssrv/main.go
+
+PKG := `go list -mod=vendor -f {{.Dir}} ./...`
 
 ifeq ($(RACE),1)
 	GOFLAGS=-race
@@ -14,29 +16,41 @@ tools:
 	@go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
 
 fmt:
-	@gofmt -l -w -s `go list -f {{.Dir}} vfs/... | grep -v /vendor/`
-
-vet:
-	@go vet $(PKG)
+	@goimports -local ${NAME} -l -w $(PKG)
 
 lint:
 	@golangci-lint run -c .golangci.yml
 
 rebuild:
-	@go build -a $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
+	@CGO_ENABLED=0 go build -a $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
+	@go mod vendor
 
 build:
-	@go build $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
+	@CGO_ENABLED=0 go build -mod=vendor $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
 
 run:
 	@echo "Compiling"
-	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN) -verbose
+	@go run -mod=vendor $(LDFLAGS) $(GOFLAGS) $(MAIN)
 
 test:
-	@go test $(LDFLAGS) $(GOFLAGS) $(PKG)
+	@go test -mod=vendor $(LDFLAGS) $(GOFLAGS) ./...
 
 test-short:
-	@go test $(LDFLAGS) $(GOFLAGS) -test.short -test.run="Test[^D][^B]" $(PKG)
+	@go test -mod=vendor $(LDFLAGS) $(GOFLAGS) -test.short -test.run="Test[^D][^B]" ./...
 
-gen:
-	go generate
+generate:
+	@go generate
+
+mod:
+	@go mod tidy
+	@go mod vendor
+
+mfd-xml:
+	@mfd-generator xml -c "postgres://postgres:postgres@localhost:5432/vfs?sslmode=disable" -m ./docs/model/vfs.mfd -n "vfs:vfsFiles,vfsFolders"
+
+mfd-model:
+	@mfd-generator model -m ./docs/model/vfs.mfd -p db -o ./db
+
+mfd-repo:
+	@mfd-generator repo -m ./docs/model/vfs.mfd -p db -o ./db
+

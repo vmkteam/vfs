@@ -8,6 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,20 +22,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"vfs/db"
 
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
+	"github.com/vmkteam/vfs/db"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/go-pg/pg"
+	"github.com/go-pg/pg/v9"
 )
 
 const (
-	DefaultHashExtension = "jpg"
-	NamespacePublic      = ""
-	defaultModePerm      = os.ModePerm
+	DefaultHashExtension    = "jpg"
+	NamespacePublic         = ""
+	defaultModePerm         = os.ModePerm
+	defaultHashFileModePerm = 0644
 )
 
 var ErrInvalidNamespace = errors.New("invalid namespace")
@@ -48,13 +49,15 @@ func (h FileHash) File() string {
 }
 
 type Config struct {
-	MaxFileSize     int64
-	Path            string
-	WebPath         string
-	Database        *pg.Options
-	Namespaces      []string
-	UploadFormName  string
-	SaltedFilenames bool
+	MaxFileSize      int64
+	Path             string
+	WebPath          string
+	PreviewPath      string
+	Database         *pg.Options
+	Namespaces       []string
+	UploadFormName   string
+	SaltedFilenames  bool
+	SkipFolderVerify bool
 }
 
 type VFS struct {
@@ -62,8 +65,10 @@ type VFS struct {
 }
 
 func New(cfg Config) (VFS, error) {
-	if _, err := os.Stat(cfg.Path); os.IsNotExist(err) {
-		return VFS{}, err
+	if !cfg.SkipFolderVerify {
+		if _, err := os.Stat(cfg.Path); os.IsNotExist(err) {
+			return VFS{}, err
+		}
 	}
 
 	if cfg.UploadFormName == "" {
@@ -134,11 +139,6 @@ func (v VFS) HashUpload(r io.Reader, ns string) (fh FileHash, err error) {
 		}
 	}()
 
-	// sync file with disk
-	if err := tf.Sync(); err != nil {
-		return "", err
-	}
-
 	// calculate hash
 	hash := md5.New()
 	wr := io.MultiWriter(hash, tf)
@@ -158,6 +158,15 @@ func (v VFS) HashUpload(r io.Reader, ns string) (fh FileHash, err error) {
 	// move temp file to data
 	err = os.Rename(tempFilename, v.FullFile(ns, fh))
 	if err != nil {
+		return "", err
+	}
+	err = os.Chmod(v.FullFile(ns, fh), defaultHashFileModePerm)
+	if err != nil {
+		return "", err
+	}
+
+	// sync file with disk
+	if err := tf.Sync(); err != nil {
 		return "", err
 	}
 	deleteTempFile = false
@@ -181,8 +190,16 @@ func (v VFS) WebHashPath(ns string, h FileHash) string {
 	return path.Join(v.cfg.WebPath, ns, h.File())
 }
 
+func (v VFS) WebHashPathWithType(ns, fType string, h FileHash) string {
+	return path.Join(v.cfg.WebPath, ns, fType, h.File())
+}
+
 func (v VFS) WebPath(ns string) string {
 	return path.Join(v.cfg.WebPath, ns)
+}
+
+func (v VFS) PreviewPath(ns string) string {
+	return path.Join(v.cfg.PreviewPath, ns)
 }
 
 func (v VFS) IsValidNamespace(ns string) bool {
@@ -245,6 +262,8 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 		rd, fileSize = file, handler.Size
 		ext = strings.TrimPrefix(filepath.Ext(handler.Filename), ".")
 		name = strings.TrimSuffix(handler.Filename, filepath.Ext(handler.Filename))
+	} else {
+		return UploadResponse{Code: http.StatusMethodNotAllowed, Error: "Method not allowed"}
 	}
 
 	// validate size
@@ -346,8 +365,8 @@ func (v VFS) createFile(repo db.VfsRepo, folder *db.VfsFolder, ns, relFilename, 
 		// detect mime type
 		_, err = reader.Seek(0, io.SeekStart)
 		if err == nil {
-			if mt, _, err := mimetype.DetectReader(reader); err == nil {
-				mType = mt
+			if mt, err := mimetype.DetectReader(reader); err == nil {
+				mType = mt.String()
 			}
 		}
 

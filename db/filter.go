@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
-	"github.com/go-pg/pg/types"
+	"github.com/go-pg/pg/v9"
+	"github.com/go-pg/pg/v9/orm"
+	"github.com/go-pg/pg/v9/types"
 )
 
 const (
@@ -72,11 +72,6 @@ func (f Filter) Apply(query *orm.Query) *orm.Query {
 	return query.Where("? ?", fld, val)
 }
 
-// Apply applies filter to searcher
-func (f Filter) Applier(query *orm.Query) (*orm.Query, error) {
-	return f.Apply(query), nil
-}
-
 func (f Filter) prepare() (field, value types.ValueAppender) {
 	// preparing value
 	switch f.SearchType {
@@ -96,5 +91,5 @@ func (f Filter) prepare() (field, value types.ValueAppender) {
 		st = searchTypes[f.Exclude][SearchTypeEquals]
 	}
 
-	return pg.F(f.Field), pg.Q(st, f.Value)
+	return pg.Ident(f.Field), pg.SafeQuery(st, f.Value)
 }

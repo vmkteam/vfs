@@ -8,7 +8,7 @@ import (
 
 var Columns = struct {
 	VfsFile struct {
-		ID, FolderID, Title, Path, Params, IsFavorite, MimeType, FileSize, FileExists, StatusID, CreatedAt string
+		ID, FolderID, Title, Path, Params, IsFavorite, MimeType, FileSize, FileExists, CreatedAt, StatusID string
 
 		Folder string
 	}
@@ -19,7 +19,7 @@ var Columns = struct {
 	}
 }{
 	VfsFile: struct {
-		ID, FolderID, Title, Path, Params, IsFavorite, MimeType, FileSize, FileExists, StatusID, CreatedAt string
+		ID, FolderID, Title, Path, Params, IsFavorite, MimeType, FileSize, FileExists, CreatedAt, StatusID string
 
 		Folder string
 	}{
@@ -32,8 +32,8 @@ var Columns = struct {
 		MimeType:   "mimeType",
 		FileSize:   "fileSize",
 		FileExists: "fileExists",
-		StatusID:   "statusId",
 		CreatedAt:  "createdAt",
+		StatusID:   "statusId",
 
 		Folder: "Folder",
 	},
@@ -76,32 +76,32 @@ var Tables = struct {
 }
 
 type VfsFile struct {
-	tableName struct{} `sql:"\"vfsFiles\",alias:t" pg:",discard_unknown_columns"`
+	tableName struct{} `pg:"\"vfsFiles\",alias:t,,discard_unknown_columns"`
 
-	ID         int            `sql:"fileId,pk"`
-	FolderID   int            `sql:"folderId,notnull"`
-	Title      string         `sql:"title,notnull"`
-	Path       string         `sql:"path,notnull"`
-	Params     *VfsFileParams `sql:"params"`
-	IsFavorite *bool          `sql:"isFavorite"`
-	MimeType   string         `sql:"mimeType,notnull"`
-	FileSize   *int           `sql:"fileSize"`
-	FileExists bool           `sql:"fileExists,notnull"`
-	StatusID   int            `sql:"statusId,notnull"`
-	CreatedAt  time.Time      `sql:"createdAt,notnull"`
+	ID         int            `pg:"fileId,pk"`
+	FolderID   int            `pg:"folderId,use_zero"`
+	Title      string         `pg:"title,use_zero"`
+	Path       string         `pg:"path,use_zero"`
+	Params     *VfsFileParams `pg:"params"`
+	IsFavorite *bool          `pg:"isFavorite"`
+	MimeType   string         `pg:"mimeType,use_zero"`
+	FileSize   *int           `pg:"fileSize"`
+	FileExists bool           `pg:"fileExists,use_zero"`
+	CreatedAt  time.Time      `pg:"createdAt,use_zero"`
+	StatusID   int            `pg:"statusId,use_zero"`
 
 	Folder *VfsFolder `pg:"fk:folderId"`
 }
 
 type VfsFolder struct {
-	tableName struct{} `sql:"\"vfsFolders\",alias:t" pg:",discard_unknown_columns"`
+	tableName struct{} `pg:"\"vfsFolders\",alias:t,,discard_unknown_columns"`
 
-	ID             int       `sql:"folderId,pk"`
-	ParentFolderID *int      `sql:"parentFolderId"`
-	Title          string    `sql:"title,notnull"`
-	IsFavorite     *bool     `sql:"isFavorite"`
-	CreatedAt      time.Time `sql:"createdAt,notnull"`
-	StatusID       int       `sql:"statusId,notnull"`
+	ID             int       `pg:"folderId,pk"`
+	ParentFolderID *int      `pg:"parentFolderId"`
+	Title          string    `pg:"title,use_zero"`
+	IsFavorite     *bool     `pg:"isFavorite"`
+	CreatedAt      time.Time `pg:"createdAt,use_zero"`
+	StatusID       int       `pg:"statusId,use_zero"`
 
 	ParentFolder *VfsFolder `pg:"fk:parentFolderId"`
 }

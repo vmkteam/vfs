@@ -11,6 +11,9 @@ run:
   # include test files or not, default is true
   tests: true
 
+  # use vendor dir
+  modules-download-mode: vendor
+
 output:
   # colored-line-number|line-number|json|tab|checkstyle|code-climate, default is "colored-line-number"
   format: colored-line-number
@@ -25,44 +28,65 @@ linters-settings:
   goimports:
     # put imports beginning with prefix after 3rd-party packages;
     # it's a comma-separated list of prefixes
-    local-prefixes: loadersrv
+    local-prefixes: vfs
+  govet:
+    # settings per analyzer
+    settings:
+      printf: # analyzer name, run `go tool vet help` to see all analyzers
+        funcs: # run `go tool vet help printf` to see available settings for `printf` analyzer
+          - (loadersrv/embedlog.Logger).Printf
+          - (loadersrv/embedlog.Logger).Errorf
+
   gocritic:
     # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint` run to see all tags and checks.
     # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
-    enabled-tags:
-      - performance
-      - opinionated
-      - diagnostic
-      - style
-      - experimental
-
-    disabled-checks:
-      - importShadow # очень много в коде это делается
-      - ifElseChain # не так важно
-      - singleCaseSwitch # не так важно
-      - commentFormatting # не так важно
-      - hugeParam # в некоторых случаях нарушает читабельность + преждевременная оптимизация
-      - commentedOutCode # раздражает при локально разработке. может быть есть возможность отключить локально, но включить на ci/cd?
-
-    settings:
-      rangeValCopy:
-        sizeThreshold: 200 # немного завышенная планка, но иногда линтер должен помочь не копировать много данных
+    enabled-checks:
+      - appendAssign
+      - appendCombine
+      - assignOp
+      - badCond
+      - boolExprSimplify
+      - captLocal
+      - caseOrder
+      - defaultCaseOrder
+      - dupArg
+      - dupBranchBody
+      - dupCase
+      - dupSubExpr
+      - elseif
+      - emptyFallthrough
+      - emptyStringTest
+      - equalFold
+      - exitAfterDefer
+      - flagName
+      - hexLiteral
+      - indexAlloc
+      - nilValReturn
+      - offBy1
+      - regexpMust
+      - sloppyLen
+      - switchTrue
+      - wrapperFunc
+      - yodaStyleExpr
 
 linters:
-  enable-all: true
-  disable-all: false
-  disable:
-    - errcheck # We do not check errors in case 'go func() error'
-    - depguard # may be enabled?
-    - gochecknoglobals # may be enabled?
-    - gochecknoinits # may be enabled?
-    - gocyclo # may be enabled?
-    - lll # Its not a problem?
-    - maligned # Right not we do not want to optimize memory usage.
-    - misspell # Not so many documentation as all.
-    - golint # Too many reports of Id -> ID, Url -> URL and so on.
-    - nakedret # We use this language feature
-    - scopelint # We use closures
-    #- gocritic
-    - prealloc
-    - gosec
+  enable-all: false
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - dogsled
+    - dupl
+    - goconst
+    - gofmt
+    - goimports
+    - gosimple
+    - gocritic
+    - govet
+    - ineffassign
+    - staticcheck
+    - structcheck
+    - typecheck
+    - unconvert
+    - unused
+    - varcheck

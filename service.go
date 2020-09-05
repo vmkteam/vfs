@@ -3,16 +3,26 @@ package vfs
 import (
 	"context"
 	"net/http"
-	"vfs/db"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"time"
 
+	"github.com/vmkteam/vfs/db"
+
+	"github.com/go-pg/pg/v9"
 	"github.com/semrush/zenrpc"
 )
 
 var (
-	ErrInternal    = httpAsRpcError(http.StatusInternalServerError)
-	ErrNotFound    = httpAsRpcError(http.StatusNotFound)
-	ErrInvalidSort = zenrpc.NewStringError(http.StatusBadRequest, "invalid sort field")
+	ErrInternal     = httpAsRpcError(http.StatusInternalServerError)
+	ErrNotFound     = httpAsRpcError(http.StatusNotFound)
+	ErrInvalidSort  = zenrpc.NewStringError(http.StatusBadRequest, "invalid sort field")
+	ErrInvalidInput = zenrpc.NewStringError(http.StatusBadRequest, "invalid user input")
 )
+
+var filenameRegex = regexp.MustCompile(`^([0-9a-z_-])+\.([0-9a-z])+$`)
 
 func httpAsRpcError(code int) *zenrpc.Error {
 	return zenrpc.NewStringError(code, http.StatusText(code))
@@ -25,12 +35,13 @@ func InternalError(err error) *zenrpc.Error {
 //go:generate zenrpc
 type Service struct {
 	zenrpc.Service
-	vfs  VFS
+	dbc  *pg.DB
 	repo db.VfsRepo
+	vfs  VFS
 }
 
-func NewService(repo db.VfsRepo, vfs VFS) Service {
-	return Service{repo: repo, vfs: vfs}
+func NewService(repo db.VfsRepo, vfs VFS, dbc *pg.DB) Service {
+	return Service{repo: repo, vfs: vfs, dbc: dbc}
 }
 
 func (s Service) folderByID(ctx context.Context, id int) (*db.VfsFolder, error) {
@@ -110,7 +121,8 @@ func (s Service) GetFiles(ctx context.Context, folderId int, query *string, sort
 
 	files := make([]File, 0, len(list))
 	for i := 0; i < len(list); i++ {
-		files = append(files, *NewFile(&list[i], s.vfs.WebPath(""))) // TODO ns?
+		// nolint
+		files = append(files, *NewFile(&list[i], s.vfs.WebPath(""), s.vfs.PreviewPath(""))) // TODO ns?
 	}
 	return files, nil
 }
@@ -129,28 +141,114 @@ func (s Service) CountFiles(ctx context.Context, folderId int, query *string) (i
 }
 
 // Move Files
-func (s Service) MoveFiles(ctx context.Context, fileIds []int, destinationFolderId int) (bool, error) {
-	return false, nil
+//zenrpc:400 empty file ids
+func (s Service) MoveFiles(ctx context.Context, fileIds []int64, destinationFolderId int) (bool, error) {
+	fl, err := s.folderByID(ctx, destinationFolderId)
+	if err != nil {
+		return false, err
+	}
+
+	if len(fileIds) == 0 {
+		return false, ErrInvalidInput
+	}
+
+	r, err := s.repo.UpdateFilesFolder(ctx, fileIds, fl.ID)
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	return r, nil
 }
 
 // Delete Files
-func (s Service) DeleteFiles(ctx context.Context, fileIds []int) (bool, error) {
-	return false, nil
+func (s Service) DeleteFiles(ctx context.Context, fileIds []int64) (bool, error) {
+	if len(fileIds) == 0 {
+		return false, ErrInvalidInput
+	}
+
+	r, err := s.repo.DeleteVfsFiles(ctx, fileIds)
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	return r, nil
 }
 
 // Rename File on Server
-func (s Service) SetFilePhysicalName(ctx context.Context, fileIds []int) (bool, error) {
-	return false, nil
+func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name string) (bool, error) {
+	if fileId == 0 || name == "" {
+		return false, ErrInvalidInput
+	}
+
+	f, err := s.repo.VfsFileByID(ctx, fileId, db.EnabledOnly())
+	if err != nil {
+		return false, InternalError(err)
+	} else if f == nil {
+		return false, ErrNotFound
+	}
+
+	if !filenameRegex.MatchString(name) {
+		return false, httpAsRpcError(http.StatusNotAcceptable)
+	}
+
+	oldPath, newPath := f.Path, filepath.Join(filepath.Dir(f.Path), name)
+	if _, err := os.Stat(s.vfs.Path(NamespacePublic, newPath)); err == nil {
+		return false, httpAsRpcError(http.StatusConflict)
+	}
+
+	// update path and move file in transaction
+	err = s.dbc.RunInTransaction(func(tx *pg.Tx) error {
+		txr := s.repo.WithTransaction(tx)
+
+		f.Path = newPath
+		_, err := txr.UpdateVfsFile(ctx, f, db.WithColumns(db.Columns.VfsFile.Path))
+		if err != nil {
+			return err
+		}
+
+		return s.vfs.Move(NamespacePublic, oldPath, newPath)
+	})
+
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	return true, nil
 }
 
 // Search Folder by File Id
-func (s Service) SearchFolderByFileId(ctx context.Context, fileId int) (*File, error) {
-	return nil, nil
+func (s Service) SearchFolderByFileId(ctx context.Context, fileId int) (*Folder, error) {
+	if fileId == 0 {
+		return nil, ErrInvalidInput
+	}
+
+	f, err := s.repo.VfsFileByID(ctx, fileId, s.repo.FullVfsFile())
+	if err != nil {
+		return nil, InternalError(err)
+	} else if f == nil {
+		return nil, ErrNotFound
+	}
+
+	return NewFolder(f.Folder), nil
 }
 
 // Search Folder by Filename
-func (s Service) SearchFolderByFile(ctx context.Context, filename string) (*File, error) {
-	return nil, nil
+func (s Service) SearchFolderByFile(ctx context.Context, filename string) (*Folder, error) {
+	if filename == "" {
+		return nil, ErrInvalidInput
+	}
+
+	list, fn := path.Split(filename)
+	searchPath := path.Join(path.Base(list), fn)
+
+	f, err := s.repo.OneVfsFile(ctx, &db.VfsFileSearch{Path: &searchPath}, s.repo.FullVfsFile())
+	if err != nil {
+		return nil, InternalError(err)
+	} else if f == nil {
+		return nil, ErrNotFound
+	}
+
+	return NewFolder(f.Folder), nil
 }
 
 // Get Favorites
@@ -170,27 +268,122 @@ func (s Service) GetFavorites(ctx context.Context) ([]Folder, error) {
 
 // Manage Favorite Folders
 func (s Service) ManageFavorites(ctx context.Context, folderId int, isInFavorites bool) (bool, error) {
-	return false, nil
+	if folderId == 0 || folderId == 1 {
+		return false, ErrInvalidInput
+	}
+
+	f, err := s.folderByID(ctx, folderId)
+	if err != nil {
+		return false, InternalError(err)
+	} else if f == nil {
+		return false, ErrNotFound
+	}
+
+	f.IsFavorite = &isInFavorites
+	return s.repo.UpdateVfsFolder(ctx, f, db.WithColumns(db.Columns.VfsFolder.IsFavorite))
 }
 
 // Create Folder
 func (s Service) CreateFolder(ctx context.Context, rootFolderId int, name string) (bool, error) {
+	f, err := s.folderByID(ctx, rootFolderId)
+	if err != nil {
+		return false, err
+	}
+
+	if name == "" {
+		return false, ErrInvalidInput
+	}
+
+	dbf := &db.VfsFolder{
+		ParentFolderID: &f.ID,
+		Title:          name,
+		CreatedAt:      time.Now(),
+		StatusID:       db.StatusEnabled,
+	}
+
+	if _, err = s.repo.AddVfsFolder(ctx, dbf); err != nil {
+		return false, InternalError(err)
+	}
+
 	return false, nil
 }
 
 // Delete Folder
 func (s Service) DeleteFolder(ctx context.Context, folderId int) (bool, error) {
-	return false, nil
+	f, err := s.folderByID(ctx, folderId)
+	if err != nil {
+		return false, err
+	}
+
+	if folderId == 1 { // root
+		return false, ErrInvalidInput
+	}
+
+	if _, err = s.repo.DeleteVfsFolder(ctx, f.ID); err != nil {
+		return false, InternalError(err)
+	}
+
+	return true, nil
 }
 
 // Move Folder
 func (s Service) MoveFolder(ctx context.Context, folderId, destinationFolderId int) (bool, error) {
-	return false, nil
+	if folderId == 1 || folderId == 0 || destinationFolderId == 0 || folderId == destinationFolderId {
+		return false, ErrInvalidInput
+	}
+
+	// validate
+	fl, err := s.folderByID(ctx, folderId)
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	dfl, err := s.folderByID(ctx, destinationFolderId)
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	if fl == nil || dfl == nil {
+		return false, ErrNotFound
+	}
+
+	// check recursive path
+	if pathList, err := s.repo.FolderBranch(ctx, destinationFolderId); err != nil {
+		return false, InternalError(err)
+	} else {
+		for i := len(pathList) - 1; i >= 0; i-- {
+			p := pathList[i]
+			if p.ID == folderId {
+				return false, httpAsRpcError(http.StatusConflict)
+			}
+		}
+	}
+
+	// move
+	fl.ParentFolderID = &dfl.ID
+	r, err := s.repo.UpdateVfsFolder(ctx, fl, db.WithColumns(db.Columns.VfsFolder.ParentFolderID))
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	return r, nil
 }
 
 // Move Folder
 func (s Service) RenameFolder(ctx context.Context, folderId int, name string) (bool, error) {
-	return false, nil
+	if folderId == 0 || folderId == 1 || name == "" {
+		return false, ErrInvalidInput
+	}
+
+	f, err := s.folderByID(ctx, folderId)
+	if err != nil {
+		return false, InternalError(err)
+	} else if f == nil {
+		return false, ErrNotFound
+	}
+
+	f.Title = name
+	return s.repo.UpdateVfsFolder(ctx, f, db.WithColumns(db.Columns.VfsFolder.Title))
 }
 
 func (s Service) HelpUpload() HelpUploadResponse {
@@ -204,4 +397,26 @@ func (s Service) HelpUpload() HelpUploadResponse {
 			Params: []string{s.vfs.cfg.UploadFormName, "folderId"},
 		},
 	}
+}
+
+// Get Url by hash, namespace and media type
+//zenrpc:hash media hash
+//zenrpc:namespace media namespace
+//zenrpc:mediaType type of media (possible values: small, medium, big, empty string)
+func (s Service) UrlByHash(ctx context.Context, hash, namespace, mediaType string) (string, error) {
+	return s.vfs.WebHashPathWithType(namespace, mediaType, FileHash(hash)), nil
+}
+
+// Get Urls by hash list, with namespace and media type
+//zenrpc:hashList media hash list
+//zenrpc:namespace media namespace
+//zenrpc:mediaType type of media (possible values: small, medium, big, empty string)
+func (s Service) UrlByHashList(ctx context.Context, hashList []string, namespace, mediaType string) ([]UrlByHashListResponse, error) {
+	var resp []UrlByHashListResponse
+	for _, hash := range hashList {
+		url, _ := s.UrlByHash(ctx, hash, namespace, mediaType)
+		resp = append(resp, UrlByHashListResponse{Hash: hash, WebPath: url})
+	}
+
+	return resp, nil
 }
