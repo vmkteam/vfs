@@ -7,8 +7,8 @@ import (
 	"hash/crc64"
 	"reflect"
 
-	"github.com/go-pg/pg/v9"
-	"github.com/go-pg/pg/v9/orm"
+	"github.com/go-pg/pg/v10"
+	"github.com/go-pg/pg/v10/orm"
 )
 
 // DB stores db connection
@@ -36,8 +36,8 @@ func (db *DB) Version() (string, error) {
 }
 
 // runInTransaction runs chain of functions in transaction until first error
-func (db *DB) runInTransaction(fns ...func(*pg.Tx) error) error {
-	return db.RunInTransaction(func(tx *pg.Tx) error {
+func (db *DB) runInTransaction(ctx context.Context, fns ...func(*pg.Tx) error) error {
+	return db.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		for _, fn := range fns {
 			if err := fn(tx); err != nil {
 				return err
@@ -48,11 +48,11 @@ func (db *DB) runInTransaction(fns ...func(*pg.Tx) error) error {
 }
 
 // RunInLock runs chain of functions in transaction with lock until first error
-func (db *DB) RunInLock(lockName string, fns ...func(*pg.Tx) error) error {
+func (db *DB) RunInLock(ctx context.Context, lockName string, fns ...func(*pg.Tx) error) error {
 	lock := int64(crc64.Checksum([]byte(lockName), db.crcTable))
 
-	return db.RunInTransaction(func(tx *pg.Tx) (err error) {
-		if _, err = tx.Exec("select pg_advisory_xact_lock(?)", lock); err != nil {
+	return db.RunInTransaction(ctx, func(tx *pg.Tx) (err error) {
+		if _, err = tx.Exec("select pg_advisory_xact_lock(?) -- ?", lock, lockName); err != nil {
 			return
 		}
 

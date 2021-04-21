@@ -7,10 +7,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-pg/pg/v9"
-
 	"github.com/vmkteam/vfs"
 	"github.com/vmkteam/vfs/db"
+
+	"github.com/go-pg/pg/v10"
 )
 
 var (

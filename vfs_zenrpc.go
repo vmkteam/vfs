@@ -6,8 +6,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/semrush/zenrpc"
-	"github.com/semrush/zenrpc/smd"
+	"github.com/vmkteam/zenrpc/v2"
+	"github.com/vmkteam/zenrpc/v2/smd"
 )
 
 var RPC = struct {
@@ -37,38 +37,36 @@ var RPC = struct {
 
 func (Service) SMD() smd.ServiceInfo {
 	return smd.ServiceInfo{
-		Description: ``,
 		Methods: map[string]smd.Service{
 			"GetFolder": {
 				Description: `Get Folder with Sub Folders.`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "rootFolderId",
-						Optional:    true,
-						Description: ``,
-						Type:        smd.Integer,
+						Name:     "rootFolderId",
+						Optional: true,
+						Type:     smd.Integer,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    true,
-					Type:        smd.Object,
-					Properties: map[string]smd.Property{
-						"id": {
-							Description: ``,
-							Type:        smd.Integer,
+					Optional: true,
+					Type:     smd.Object,
+					Properties: smd.PropertyList{
+						{
+							Name: "id",
+							Type: smd.Integer,
 						},
-						"name": {
-							Description: ``,
-							Type:        smd.String,
+						{
+							Name: "name",
+							Type: smd.String,
 						},
-						"parentId": {
-							Description: ``,
-							Type:        smd.Integer,
+						{
+							Name:     "parentId",
+							Optional: true,
+							Type:     smd.Integer,
 						},
-						"folders": {
-							Description: ``,
-							Type:        smd.Array,
+						{
+							Name: "folders",
+							Type: smd.Array,
 							Items: map[string]string{
 								"$ref": "#/definitions/Folder",
 							},
@@ -77,22 +75,23 @@ func (Service) SMD() smd.ServiceInfo {
 					Definitions: map[string]smd.Definition{
 						"Folder": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"id": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "id",
+									Type: smd.Integer,
 								},
-								"name": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "name",
+									Type: smd.String,
 								},
-								"parentId": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "parentId",
+									Optional: true,
+									Type:     smd.Integer,
 								},
-								"folders": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "folders",
+									Type: smd.Array,
 									Items: map[string]string{
 										"$ref": "#/definitions/Folder",
 									},
@@ -109,38 +108,35 @@ func (Service) SMD() smd.ServiceInfo {
 				Description: `Get Folder Branch`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "folderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "folderId",
+						Type: smd.Integer,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Array,
+					Type: smd.Array,
 					Items: map[string]string{
 						"$ref": "#/definitions/Folder",
 					},
 					Definitions: map[string]smd.Definition{
 						"Folder": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"id": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "id",
+									Type: smd.Integer,
 								},
-								"name": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "name",
+									Type: smd.String,
 								},
-								"parentId": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "parentId",
+									Optional: true,
+									Type:     smd.Integer,
 								},
-								"folders": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "folders",
+									Type: smd.Array,
 									Items: map[string]string{
 										"$ref": "#/definitions/Folder",
 									},
@@ -155,7 +151,6 @@ func (Service) SMD() smd.ServiceInfo {
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "folderId",
-						Optional:    false,
 						Description: `root folder id`,
 						Type:        smd.Integer,
 					},
@@ -191,88 +186,88 @@ func (Service) SMD() smd.ServiceInfo {
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Array,
+					Type: smd.Array,
 					Items: map[string]string{
 						"$ref": "#/definitions/File",
 					},
 					Definitions: map[string]smd.Definition{
 						"File": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"id": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "id",
+									Type: smd.Integer,
 								},
-								"name": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "name",
+									Type: smd.String,
 								},
-								"path": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "path",
+									Type: smd.String,
 								},
-								"previewpath": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "previewpath",
+									Type: smd.String,
 								},
-								"relpath": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "relpath",
+									Type: smd.String,
 								},
-								"size": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name: "size",
+									Type: smd.Integer,
 								},
-								"sizeH": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "sizeH",
+									Type: smd.Array,
 									Items: map[string]string{
 										"type": smd.String,
 									},
 								},
-								"date": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "date",
+									Type: smd.String,
 								},
-								"type": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "type",
+									Type: smd.String,
 								},
-								"extension": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "extension",
+									Type: smd.String,
 								},
-								"params": {
-									Description: ``,
-									Ref:         "#/definitions/FileParams",
-									Type:        smd.Object,
+								{
+									Name: "params",
+									Ref:  "#/definitions/FileParams",
+									Type: smd.Object,
 								},
-								"shortpath": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "shortpath",
+									Type: smd.String,
 								},
-								"width": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "width",
+									Optional: true,
+									Type:     smd.Integer,
 								},
-								"height": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "height",
+									Optional: true,
+									Type:     smd.Integer,
 								},
 							},
 						},
 						"FileParams": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"width": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "width",
+									Type: smd.Integer,
 								},
-								"height": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name: "height",
+									Type: smd.Integer,
 								},
 							},
 						},
@@ -284,7 +279,6 @@ func (Service) SMD() smd.ServiceInfo {
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "folderId",
-						Optional:    false,
 						Description: `root folder id`,
 						Type:        smd.Integer,
 					},
@@ -296,34 +290,26 @@ func (Service) SMD() smd.ServiceInfo {
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Integer,
+					Type: smd.Integer,
 				},
 			},
 			"MoveFiles": {
 				Description: `Move Files`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "fileIds",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Array,
+						Name: "fileIds",
+						Type: smd.Array,
 						Items: map[string]string{
 							"type": smd.Integer,
 						},
 					},
 					{
-						Name:        "destinationFolderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "destinationFolderId",
+						Type: smd.Integer,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 				Errors: map[int]string{
 					400: "empty file ids",
@@ -333,73 +319,61 @@ func (Service) SMD() smd.ServiceInfo {
 				Description: `Delete Files`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "fileIds",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Array,
+						Name: "fileIds",
+						Type: smd.Array,
 						Items: map[string]string{
 							"type": smd.Integer,
 						},
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"SetFilePhysicalName": {
 				Description: `Rename File on Server`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "fileId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "fileId",
+						Type: smd.Integer,
 					},
 					{
-						Name:        "name",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.String,
+						Name: "name",
+						Type: smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"SearchFolderByFileId": {
 				Description: `Search Folder by File Id`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "fileId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "fileId",
+						Type: smd.Integer,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    true,
-					Type:        smd.Object,
-					Properties: map[string]smd.Property{
-						"id": {
-							Description: ``,
-							Type:        smd.Integer,
+					Optional: true,
+					Type:     smd.Object,
+					Properties: smd.PropertyList{
+						{
+							Name: "id",
+							Type: smd.Integer,
 						},
-						"name": {
-							Description: ``,
-							Type:        smd.String,
+						{
+							Name: "name",
+							Type: smd.String,
 						},
-						"parentId": {
-							Description: ``,
-							Type:        smd.Integer,
+						{
+							Name:     "parentId",
+							Optional: true,
+							Type:     smd.Integer,
 						},
-						"folders": {
-							Description: ``,
-							Type:        smd.Array,
+						{
+							Name: "folders",
+							Type: smd.Array,
 							Items: map[string]string{
 								"$ref": "#/definitions/Folder",
 							},
@@ -408,22 +382,23 @@ func (Service) SMD() smd.ServiceInfo {
 					Definitions: map[string]smd.Definition{
 						"Folder": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"id": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "id",
+									Type: smd.Integer,
 								},
-								"name": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "name",
+									Type: smd.String,
 								},
-								"parentId": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "parentId",
+									Optional: true,
+									Type:     smd.Integer,
 								},
-								"folders": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "folders",
+									Type: smd.Array,
 									Items: map[string]string{
 										"$ref": "#/definitions/Folder",
 									},
@@ -437,32 +412,30 @@ func (Service) SMD() smd.ServiceInfo {
 				Description: `Search Folder by Filename`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "filename",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.String,
+						Name: "filename",
+						Type: smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    true,
-					Type:        smd.Object,
-					Properties: map[string]smd.Property{
-						"id": {
-							Description: ``,
-							Type:        smd.Integer,
+					Optional: true,
+					Type:     smd.Object,
+					Properties: smd.PropertyList{
+						{
+							Name: "id",
+							Type: smd.Integer,
 						},
-						"name": {
-							Description: ``,
-							Type:        smd.String,
+						{
+							Name: "name",
+							Type: smd.String,
 						},
-						"parentId": {
-							Description: ``,
-							Type:        smd.Integer,
+						{
+							Name:     "parentId",
+							Optional: true,
+							Type:     smd.Integer,
 						},
-						"folders": {
-							Description: ``,
-							Type:        smd.Array,
+						{
+							Name: "folders",
+							Type: smd.Array,
 							Items: map[string]string{
 								"$ref": "#/definitions/Folder",
 							},
@@ -471,22 +444,23 @@ func (Service) SMD() smd.ServiceInfo {
 					Definitions: map[string]smd.Definition{
 						"Folder": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"id": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "id",
+									Type: smd.Integer,
 								},
-								"name": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "name",
+									Type: smd.String,
 								},
-								"parentId": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "parentId",
+									Optional: true,
+									Type:     smd.Integer,
 								},
-								"folders": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "folders",
+									Type: smd.Array,
 									Items: map[string]string{
 										"$ref": "#/definitions/Folder",
 									},
@@ -500,31 +474,30 @@ func (Service) SMD() smd.ServiceInfo {
 				Description: `Get Favorites`,
 				Parameters:  []smd.JSONSchema{},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Array,
+					Type: smd.Array,
 					Items: map[string]string{
 						"$ref": "#/definitions/Folder",
 					},
 					Definitions: map[string]smd.Definition{
 						"Folder": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"id": {
-									Description: ``,
-									Type:        smd.Integer,
+							Properties: smd.PropertyList{
+								{
+									Name: "id",
+									Type: smd.Integer,
 								},
-								"name": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "name",
+									Type: smd.String,
 								},
-								"parentId": {
-									Description: ``,
-									Type:        smd.Integer,
+								{
+									Name:     "parentId",
+									Optional: true,
+									Type:     smd.Integer,
 								},
-								"folders": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "folders",
+									Type: smd.Array,
 									Items: map[string]string{
 										"$ref": "#/definitions/Folder",
 									},
@@ -538,136 +511,105 @@ func (Service) SMD() smd.ServiceInfo {
 				Description: `Manage Favorite Folders`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "folderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "folderId",
+						Type: smd.Integer,
 					},
 					{
-						Name:        "isInFavorites",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Boolean,
+						Name: "isInFavorites",
+						Type: smd.Boolean,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"CreateFolder": {
 				Description: `Create Folder`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "rootFolderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "rootFolderId",
+						Type: smd.Integer,
 					},
 					{
-						Name:        "name",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.String,
+						Name: "name",
+						Type: smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"DeleteFolder": {
 				Description: `Delete Folder`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "folderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "folderId",
+						Type: smd.Integer,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"MoveFolder": {
 				Description: `Move Folder`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "folderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "folderId",
+						Type: smd.Integer,
 					},
 					{
-						Name:        "destinationFolderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "destinationFolderId",
+						Type: smd.Integer,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"RenameFolder": {
 				Description: `Move Folder`,
 				Parameters: []smd.JSONSchema{
 					{
-						Name:        "folderId",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.Integer,
+						Name: "folderId",
+						Type: smd.Integer,
 					},
 					{
-						Name:        "name",
-						Optional:    false,
-						Description: ``,
-						Type:        smd.String,
+						Name: "name",
+						Type: smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Boolean,
+					Type: smd.Boolean,
 				},
 			},
 			"HelpUpload": {
-				Description: ``,
-				Parameters:  []smd.JSONSchema{},
+				Parameters: []smd.JSONSchema{},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Object,
-					Properties: map[string]smd.Property{
-						"temp": {
-							Description: ``,
-							Ref:         "#/definitions/HelpUploadItem",
-							Type:        smd.Object,
+					Type: smd.Object,
+					Properties: smd.PropertyList{
+						{
+							Name: "temp",
+							Ref:  "#/definitions/HelpUploadItem",
+							Type: smd.Object,
 						},
-						"queue": {
-							Description: ``,
-							Ref:         "#/definitions/HelpUploadItem",
-							Type:        smd.Object,
+						{
+							Name: "queue",
+							Ref:  "#/definitions/HelpUploadItem",
+							Type: smd.Object,
 						},
 					},
 					Definitions: map[string]smd.Definition{
 						"HelpUploadItem": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"url": {
-									Description: ``,
-									Type:        smd.String,
+							Properties: smd.PropertyList{
+								{
+									Name: "url",
+									Type: smd.String,
 								},
-								"params": {
-									Description: ``,
-									Type:        smd.Array,
+								{
+									Name: "params",
+									Type: smd.Array,
 									Items: map[string]string{
 										"type": smd.String,
 									},
@@ -682,27 +624,22 @@ func (Service) SMD() smd.ServiceInfo {
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "hash",
-						Optional:    false,
 						Description: `media hash`,
 						Type:        smd.String,
 					},
 					{
 						Name:        "namespace",
-						Optional:    false,
 						Description: `media namespace`,
 						Type:        smd.String,
 					},
 					{
 						Name:        "mediaType",
-						Optional:    false,
 						Description: `type of media (possible values: small, medium, big, empty string)`,
 						Type:        smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.String,
+					Type: smd.String,
 				},
 			},
 			"UrlByHashList": {
@@ -710,7 +647,6 @@ func (Service) SMD() smd.ServiceInfo {
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "hashList",
-						Optional:    false,
 						Description: `media hash list`,
 						Type:        smd.Array,
 						Items: map[string]string{
@@ -719,35 +655,31 @@ func (Service) SMD() smd.ServiceInfo {
 					},
 					{
 						Name:        "namespace",
-						Optional:    false,
 						Description: `media namespace`,
 						Type:        smd.String,
 					},
 					{
 						Name:        "mediaType",
-						Optional:    false,
 						Description: `type of media (possible values: small, medium, big, empty string)`,
 						Type:        smd.String,
 					},
 				},
 				Returns: smd.JSONSchema{
-					Description: ``,
-					Optional:    false,
-					Type:        smd.Array,
+					Type: smd.Array,
 					Items: map[string]string{
 						"$ref": "#/definitions/UrlByHashListResponse",
 					},
 					Definitions: map[string]smd.Definition{
 						"UrlByHashListResponse": {
 							Type: "object",
-							Properties: map[string]smd.Property{
-								"hash": {
-									Description: ``,
-									Type:        smd.String,
+							Properties: smd.PropertyList{
+								{
+									Name: "hash",
+									Type: smd.String,
 								},
-								"webPath": {
-									Description: ``,
-									Type:        smd.String,
+								{
+									Name: "webPath",
+									Type: smd.String,
 								},
 							},
 						},

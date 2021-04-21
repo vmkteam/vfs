@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 
-	"github.com/go-pg/pg/v9"
+	"github.com/go-pg/pg/v10"
 )
 
 func (vr VfsRepo) FolderBranch(ctx context.Context, folderId int) (list []VfsFolder, err error) {
@@ -38,7 +38,7 @@ func (vr VfsRepo) NextFileID() (int, error) {
 func (vr VfsRepo) UpdateFilesFolder(ctx context.Context, fileIDs []int64, newFolderId int) (bool, error) {
 	q := vr.db.ModelContext(ctx, &VfsFile{FolderID: newFolderId}).
 		Column(Columns.VfsFile.FolderID).
-		Where("? IN (?)", pg.F(Columns.VfsFile.ID), pg.Ints(fileIDs))
+		Where("? IN (?)", pg.Ident(Columns.VfsFile.ID), pg.Ints(fileIDs))
 
 	res, err := q.Update()
 	if err != nil {
@@ -51,7 +51,7 @@ func (vr VfsRepo) UpdateFilesFolder(ctx context.Context, fileIDs []int64, newFol
 func (vr VfsRepo) DeleteVfsFiles(ctx context.Context, fileIDs []int64) (bool, error) {
 	q := vr.db.ModelContext(ctx, &VfsFile{StatusID: StatusDeleted}).
 		Column(Columns.VfsFile.StatusID).
-		Where("? IN (?)", pg.F(Columns.VfsFile.ID), pg.Ints(fileIDs))
+		Where("? IN (?)", pg.Ident(Columns.VfsFile.ID), pg.Ints(fileIDs))
 
 	res, err := q.Update()
 	if err != nil {

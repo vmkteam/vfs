@@ -9,13 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
-	"github.com/go-pg/pg/v9"
-	"github.com/namsral/flag"
-	"github.com/semrush/zenrpc"
+	"github.com/vmkteam/rpcgen/v2"
 
 	"github.com/vmkteam/vfs"
 	"github.com/vmkteam/vfs/db"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/go-pg/pg/v10"
+	"github.com/namsral/flag"
+	"github.com/vmkteam/zenrpc/v2"
 )
 
 var (
@@ -58,9 +60,11 @@ func main() {
 		rpc.Register("", vfs.NewService(*repo, v, dbc))
 		rpc.Register("vfs", vfs.NewService(*repo, v, dbc))
 
+		gen := rpcgen.FromSMD(rpc.SMD())
+
 		http.Handle("/rpc", corsMiddleware(authMiddleware(rpc)))
 		http.Handle("/upload/file", corsMiddleware(authMiddleware(v.UploadHandler(*repo))))
-		http.Handle("/rpc/api.ts", corsMiddleware(typeScriptClientHandler(rpc)))
+		http.Handle("/rpc/api.ts", corsMiddleware(http.HandlerFunc(rpcgen.Handler(gen.TSClient(nil)))))
 	}
 
 	http.HandleFunc("/auth-token", issueTokenHandler)
@@ -84,23 +88,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
-	})
-}
-
-// typeScriptClientHandler returns typescript API client
-func typeScriptClientHandler(srv zenrpc.Server) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bb, err := vfs.NewTypeScriptClient(srv.SMD()).Run()
-		if err != nil {
-			log.Printf("failed to convert type script err=%q", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-
-		_, err = w.Write(bb)
-		if err != nil {
-			log.Printf("failed to write type script err=%q", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
 	})
 }
 
