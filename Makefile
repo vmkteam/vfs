@@ -1,4 +1,5 @@
 NAME := vfs
+LOCAL_PKG := github.com/vmkteam/vfs
 MAIN := cmd/vfssrv/main.go
 
 PKG := `go list -mod=vendor -f {{.Dir}} ./...`
@@ -16,7 +17,7 @@ tools:
 	@go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
 
 fmt:
-	@goimports -local ${NAME} -l -w $(PKG)
+	@goimports -local ${LOCAL_PKG} -l -w $(PKG)
 
 lint:
 	@golangci-lint run -c .golangci.yml

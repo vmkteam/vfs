@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-pg/pg/v9"
-	"github.com/go-pg/pg/v9/orm"
-	"github.com/go-pg/pg/v9/types"
+	"github.com/go-pg/pg/v10"
+	"github.com/go-pg/pg/v10/orm"
+	"github.com/go-pg/pg/v10/types"
 )
 
 const (
@@ -19,6 +19,10 @@ const (
 	SearchTypeLike
 	SearchTypeILike
 	SearchTypeArray
+	SearchTypeArrayContains
+	SearchTypeArrayContained
+	SearchTypeArrayIntersect
+	SearchTypeJsonbPath
 )
 
 var formatter = orm.Formatter{}
@@ -26,27 +30,32 @@ var formatter = orm.Formatter{}
 var searchTypes = map[bool]map[int]string{
 	// include
 	false: {
-		SearchTypeEquals:  "= ?",
-		SearchTypeNull:    "is null",
-		SearchTypeGE:      ">= ?",
-		SearchTypeLE:      "<= ?",
-		SearchTypeGreater: "> ?",
-		SearchTypeLess:    "< ?",
-		SearchTypeLike:    "like ?",
-		SearchTypeILike:   "ilike ?",
-		SearchTypeArray:   "in (?)",
+		SearchTypeEquals:         "= ?",
+		SearchTypeNull:           "is null",
+		SearchTypeGE:             ">= ?",
+		SearchTypeLE:             "<= ?",
+		SearchTypeGreater:        "> ?",
+		SearchTypeLess:           "< ?",
+		SearchTypeLike:           "like ?",
+		SearchTypeILike:          "ilike ?",
+		SearchTypeArray:          "in (?)",
+		SearchTypeArrayContains:  "= any (?)",
+		SearchTypeArrayContained: "ARRAY[?] <@",
+		SearchTypeArrayIntersect: "ARRAY[?] &&",
+		SearchTypeJsonbPath:      "@> ?",
 	},
 	// exclude
 	true: {
-		SearchTypeEquals:  "!= ?",
-		SearchTypeNull:    "is not null",
-		SearchTypeGE:      "< ?",
-		SearchTypeLE:      "> ?",
-		SearchTypeGreater: "<= ?",
-		SearchTypeLess:    ">= ?",
-		SearchTypeLike:    "not (like ?)",
-		SearchTypeILike:   "not (ilike ?)",
-		SearchTypeArray:   "not in (?)",
+		SearchTypeEquals:        "!= ?",
+		SearchTypeNull:          "is not null",
+		SearchTypeGE:            "< ?",
+		SearchTypeLE:            "> ?",
+		SearchTypeGreater:       "<= ?",
+		SearchTypeLess:          ">= ?",
+		SearchTypeLike:          "not (like ?)",
+		SearchTypeILike:         "not (ilike ?)",
+		SearchTypeArray:         "not in (?)",
+		SearchTypeArrayContains: "!= all (?)",
 	},
 }
 
@@ -73,14 +82,7 @@ func (f Filter) Apply(query *orm.Query) *orm.Query {
 }
 
 func (f Filter) prepare() (field, value types.ValueAppender) {
-	// preparing value
-	switch f.SearchType {
-	case SearchTypeArray:
-		f.Value = pg.In(f.Value)
-	case SearchTypeILike, SearchTypeLike:
-		f.Value = `%` + f.Value.(string) + `%`
-	}
-
+	// preparing field
 	if !strings.Contains(f.Field, ".") {
 		f.Field = fmt.Sprintf("%s.%s", TablePrefix, f.Field)
 	}
@@ -89,6 +91,24 @@ func (f Filter) prepare() (field, value types.ValueAppender) {
 	st, ok := searchTypes[f.Exclude][f.SearchType]
 	if !ok {
 		st = searchTypes[f.Exclude][SearchTypeEquals]
+	}
+
+	// process json field
+	if strings.Contains(f.Field, "->") {
+		return f.prepareJson(st)
+	}
+
+	// preparing value
+	switch f.SearchType {
+	case SearchTypeArray:
+		f.Value = pg.In(f.Value)
+	case SearchTypeILike, SearchTypeLike:
+		f.Value = `%` + f.Value.(string) + `%`
+	case SearchTypeArrayContains:
+		return pg.SafeQuery("?", f.Value), pg.SafeQuery(st, pg.Ident(f.Field))
+	case SearchTypeArrayContained, SearchTypeArrayIntersect:
+		f.Value = pg.In(f.Value)
+		return pg.SafeQuery(st, f.Value), pg.SafeQuery("?", pg.Ident(f.Field))
 	}
 
 	return pg.Ident(f.Field), pg.SafeQuery(st, f.Value)

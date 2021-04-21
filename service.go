@@ -11,8 +11,8 @@ import (
 
 	"github.com/vmkteam/vfs/db"
 
-	"github.com/go-pg/pg/v9"
-	"github.com/semrush/zenrpc"
+	"github.com/go-pg/pg/v10"
+	"github.com/vmkteam/zenrpc/v2"
 )
 
 var (
@@ -197,7 +197,7 @@ func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name strin
 	}
 
 	// update path and move file in transaction
-	err = s.dbc.RunInTransaction(func(tx *pg.Tx) error {
+	err = s.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		txr := s.repo.WithTransaction(tx)
 
 		f.Path = newPath

@@ -26,7 +26,7 @@ import (
 	"github.com/vmkteam/vfs/db"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/go-pg/pg/v9"
+	"github.com/go-pg/pg/v10"
 )
 
 const (

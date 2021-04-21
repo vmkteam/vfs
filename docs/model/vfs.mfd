@@ -4,5 +4,5 @@
         <string>vfs</string>
     </PackageNames>
     <Languages></Languages>
-    <GoPGVer>9</GoPGVer>
+    <GoPGVer>10</GoPGVer>
 </Project>
