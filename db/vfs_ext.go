@@ -30,7 +30,7 @@ func (vfs *VfsFileSearch) WithQuery(query *string) *VfsFileSearch {
 
 func (vr VfsRepo) NextFileID() (int, error) {
 	var max int
-	_, err := vr.db.Query(&max, `select nextval('"vfsFiles_fileId_seq"')`)
+	_, err := vr.db.Query(pg.Scan(&max), `select nextval('"vfsFiles_fileId_seq"')`)
 
 	return max, err
 }
