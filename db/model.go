@@ -78,7 +78,7 @@ var Tables = struct {
 }
 
 type VfsFile struct {
-	tableName struct{} `pg:"\"vfsFiles\",alias:t,discard_unknown_columns"`
+	tableName struct{} `pg:"vfsFiles,alias:t,discard_unknown_columns"`
 
 	ID         int            `pg:"fileId,pk"`
 	FolderID   int            `pg:"folderId,use_zero"`
@@ -96,7 +96,7 @@ type VfsFile struct {
 }
 
 type VfsFolder struct {
-	tableName struct{} `pg:"\"vfsFolders\",alias:t,discard_unknown_columns"`
+	tableName struct{} `pg:"vfsFolders,alias:t,discard_unknown_columns"`
 
 	ID             int       `pg:"folderId,pk"`
 	ParentFolderID *int      `pg:"parentFolderId"`
