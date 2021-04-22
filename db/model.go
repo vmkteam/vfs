@@ -92,7 +92,7 @@ type VfsFile struct {
 	CreatedAt  time.Time      `pg:"createdAt,use_zero"`
 	StatusID   int            `pg:"statusId,use_zero"`
 
-	Folder *VfsFolder `pg:"fk:folderId"`
+	Folder *VfsFolder `pg:"fk:folderId,rel:has-one"`
 }
 
 type VfsFolder struct {
@@ -105,5 +105,5 @@ type VfsFolder struct {
 	CreatedAt      time.Time `pg:"createdAt,use_zero"`
 	StatusID       int       `pg:"statusId,use_zero"`
 
-	ParentFolder *VfsFolder `pg:"fk:parentFolderId"`
+	ParentFolder *VfsFolder `pg:"fk:parentFolderId,rel:has-one"`
 }
