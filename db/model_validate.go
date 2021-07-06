@@ -41,3 +41,13 @@ func (vf VfsFolder) Validate() (errors map[string]string, valid bool) {
 
 	return errors, len(errors) == 0
 }
+
+func (vh VfsHash) Validate() (errors map[string]string, valid bool) {
+	errors = map[string]string{}
+
+	if utf8.RuneCountInString(vh.Extension) > 4 {
+		errors[Columns.VfsHash.Extension] = ErrMaxLength
+	}
+
+	return errors, len(errors) == 0
+}

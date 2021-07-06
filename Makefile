@@ -47,11 +47,10 @@ mod:
 	@go mod vendor
 
 mfd-xml:
-	@mfd-generator xml -c "postgres://postgres:postgres@localhost:5432/vfs?sslmode=disable" -m ./docs/model/vfs.mfd -n "vfs:vfsFiles,vfsFolders"
+	@mfd-generator xml -c "postgres://postgres:postgres@localhost:5432/vfs?sslmode=disable" -m ./docs/model/vfs.mfd -n "vfs:vfsFiles,vfsFolders,vfsHashes"
 
 mfd-model:
 	@mfd-generator model -m ./docs/model/vfs.mfd -p db -o ./db
 
 mfd-repo:
 	@mfd-generator repo -m ./docs/model/vfs.mfd -p db -o ./db
-

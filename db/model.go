@@ -19,6 +19,9 @@ var Columns = struct {
 
 		ParentFolder string
 	}
+	VfsHash struct {
+		Hash, Namespace, Extension, FileSize, Width, Height, Blurhash, CreatedAt, IndexedAt string
+	}
 }{
 	VfsFile: struct {
 		ID, FolderID, Title, Path, Params, IsFavorite, MimeType, FileSize, FileExists, CreatedAt, StatusID string
@@ -53,6 +56,19 @@ var Columns = struct {
 
 		ParentFolder: "ParentFolder",
 	},
+	VfsHash: struct {
+		Hash, Namespace, Extension, FileSize, Width, Height, Blurhash, CreatedAt, IndexedAt string
+	}{
+		Hash:      "hash",
+		Namespace: "namespace",
+		Extension: "extension",
+		FileSize:  "fileSize",
+		Width:     "width",
+		Height:    "height",
+		Blurhash:  "blurhash",
+		CreatedAt: "createdAt",
+		IndexedAt: "indexedAt",
+	},
 }
 
 var Tables = struct {
@@ -60,6 +76,9 @@ var Tables = struct {
 		Name, Alias string
 	}
 	VfsFolder struct {
+		Name, Alias string
+	}
+	VfsHash struct {
 		Name, Alias string
 	}
 }{
@@ -73,6 +92,12 @@ var Tables = struct {
 		Name, Alias string
 	}{
 		Name:  "vfsFolders",
+		Alias: "t",
+	},
+	VfsHash: struct {
+		Name, Alias string
+	}{
+		Name:  "vfsHashes",
 		Alias: "t",
 	},
 }
@@ -106,4 +131,18 @@ type VfsFolder struct {
 	StatusID       int       `pg:"statusId,use_zero"`
 
 	ParentFolder *VfsFolder `pg:"fk:parentFolderId,rel:has-one"`
+}
+
+type VfsHash struct {
+	tableName struct{} `pg:"vfsHashes,alias:t,discard_unknown_columns"`
+
+	Hash      string     `pg:"hash,pk"`
+	Namespace string     `pg:"namespace,pk"`
+	Extension string     `pg:"extension,use_zero"`
+	FileSize  int        `pg:"fileSize,use_zero"`
+	Width     int        `pg:"width,use_zero"`
+	Height    int        `pg:"height,use_zero"`
+	Blurhash  *string    `pg:"blurhash"`
+	CreatedAt time.Time  `pg:"createdAt,use_zero"`
+	IndexedAt *time.Time `pg:"indexedAt"`
 }
