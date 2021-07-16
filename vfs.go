@@ -290,6 +290,17 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 		return UploadResponse{Error: err.Error(), Code: http.StatusBadRequest}
 	}
 
+	// index file
+	// insert into db vfsHash
+	// TODO REMOVE
+	hi := NewHashIndexer(db.DB{}, v)
+	if hr, err := hi.IndexFile(ns, FileHash(hash).File()); err == nil {
+		fmt.Println(hr)
+	} else {
+		fmt.Println(err)
+	}
+	// EOF TODO REMOVE
+
 	// write response
 	return UploadResponse{Code: http.StatusOK, Hash: string(hash), WebPath: v.WebHashPath(ns, hash)}
 }
