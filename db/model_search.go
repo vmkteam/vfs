@@ -204,12 +204,14 @@ type VfsHashSearch struct {
 	Blurhash       *string
 	CreatedAt      *time.Time
 	IndexedAt      *time.Time
+	Error          *string
 	Hashes         []string
 	HashILike      *string
 	Namespaces     []string
 	NamespaceILike *string
 	ExtensionILike *string
 	BlurhashILike  *string
+	ErrorILike     *string
 }
 
 func (vhs *VfsHashSearch) Apply(query *orm.Query) *orm.Query {
@@ -243,6 +245,9 @@ func (vhs *VfsHashSearch) Apply(query *orm.Query) *orm.Query {
 	if vhs.IndexedAt != nil {
 		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.IndexedAt, vhs.IndexedAt)
 	}
+	if vhs.Error != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Error, vhs.Error)
+	}
 	if len(vhs.Hashes) > 0 {
 		Filter{Columns.VfsHash.Hash, vhs.Hashes, SearchTypeArray, false}.Apply(query)
 	}
@@ -260,6 +265,9 @@ func (vhs *VfsHashSearch) Apply(query *orm.Query) *orm.Query {
 	}
 	if vhs.BlurhashILike != nil {
 		Filter{Columns.VfsHash.Blurhash, *vhs.BlurhashILike, SearchTypeILike, false}.Apply(query)
+	}
+	if vhs.ErrorILike != nil {
+		Filter{Columns.VfsHash.Error, *vhs.ErrorILike, SearchTypeILike, false}.Apply(query)
 	}
 
 	vhs.apply(query)

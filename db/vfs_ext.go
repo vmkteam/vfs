@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-pg/pg/v10"
 )
@@ -59,4 +60,22 @@ func (vr VfsRepo) DeleteVfsFiles(ctx context.Context, fileIDs []int64) (bool, er
 	}
 
 	return res.RowsAffected() > 0, err
+}
+
+func (vr VfsRepo) HashesForUpdate(ctx context.Context, limit uint64) (list []VfsHash, err error) {
+	_, err = vr.db.QueryContext(
+		ctx,
+		&list,
+		`SELECT "`+
+			strings.Join([]string{
+				Columns.VfsHash.Hash,
+				Columns.VfsHash.Namespace,
+			}, `", "`)+`"`+
+			` FROM "`+Tables.VfsHash.Name+`"`+
+			` WHERE "`+Columns.VfsHash.IndexedAt+`" IS NULL`+
+			` LIMIT ?`+
+			` FOR NO KEY UPDATE SKIP LOCKED`,
+		limit,
+	)
+	return
 }

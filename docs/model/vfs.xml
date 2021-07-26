@@ -47,6 +47,7 @@
                 <Attribute Name="Blurhash" DBName="blurhash" DBType="text" GoType="*string" PK="false" Nullable="Yes" Addable="true" Updatable="true" Min="0" Max="0"></Attribute>
                 <Attribute Name="CreatedAt" DBName="createdAt" DBType="timestamptz" GoType="time.Time" PK="false" Nullable="No" Addable="false" Updatable="false" Min="0" Max="0"></Attribute>
                 <Attribute Name="IndexedAt" DBName="indexedAt" DBType="timestamptz" GoType="*time.Time" PK="false" Nullable="Yes" Addable="true" Updatable="true" Min="0" Max="0"></Attribute>
+                <Attribute Name="Error" DBName="error" DBType="text" GoType="string" PK="false" Nullable="No" Addable="true" Updatable="true" Min="0" Max="0"></Attribute>
             </Attributes>
             <Searches>
                 <Search Name="Hashes" AttrName="Hash" SearchType="SEARCHTYPE_ARRAY"></Search>
@@ -55,6 +56,7 @@
                 <Search Name="NamespaceILike" AttrName="Namespace" SearchType="SEARCHTYPE_ILIKE"></Search>
                 <Search Name="ExtensionILike" AttrName="Extension" SearchType="SEARCHTYPE_ILIKE"></Search>
                 <Search Name="BlurhashILike" AttrName="Blurhash" SearchType="SEARCHTYPE_ILIKE"></Search>
+                <Search Name="ErrorILike" AttrName="Error" SearchType="SEARCHTYPE_ILIKE"></Search>
             </Searches>
         </Entity>
     </Entities>

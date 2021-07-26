@@ -1,14 +1,36 @@
 package vfs
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
+	"errors"
 	"image"
+	"image/png"
 	"io"
+	"io/fs"
+	"log"
+	"math"
+	"net/http"
 	"os"
-
-	"github.com/vmkteam/vfs/db"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/bbrks/go-blurhash"
+	"github.com/go-pg/pg/v10"
+	"github.com/vmkteam/vfs/db"
+	"go.uber.org/atomic"
+)
+
+const (
+	defaultBatchSize = 100
+	defaultInterval  = time.Second // todo
+	defaultCacheSize = 1000
 )
 
 type HashInfo struct {
@@ -20,20 +42,45 @@ type HashInfo struct {
 	BlurHash  string
 }
 
+type ScanResults struct {
+	Scanned  uint64        `json:"scanned"`
+	Added    uint64        `json:"added"`
+	Duration time.Duration `json:"duration"`
+}
+
 type HashIndexer struct {
-	dbc db.DB
-	vfs VFS
+	dbc  db.DB
+	vfs  VFS
+	repo *db.VfsRepo
+
+	t        *time.Ticker
+	scanning *atomic.Bool
+	indexing *atomic.Bool
 }
 
-func NewHashIndexer(dbc db.DB, vfs VFS) *HashIndexer {
-	return &HashIndexer{dbc: dbc, vfs: vfs}
+func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS) *HashIndexer {
+	return &HashIndexer{
+		dbc:      dbc,
+		repo:     repo,
+		vfs:      vfs,
+		scanning: atomic.NewBool(false),
+		indexing: atomic.NewBool(false),
+	}
 }
 
-// Index indexes file and save results to DB.
-func (hi HashIndexer) Index(ctx context.Context, filepath string) error {
-	// index files
-	// save to db
-	return nil
+func (hi HashIndexer) Start() {
+	hi.t = time.NewTicker(defaultInterval)
+	for range hi.t.C {
+		if err := hi.ProcessQueue(context.Background()); err != nil {
+			log.Println(err)
+		}
+	}
+}
+
+func (hi HashIndexer) Stop() {
+	if hi.t != nil {
+		hi.t.Stop()
+	}
 }
 
 func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
@@ -43,6 +90,9 @@ func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
 	if err != nil {
 		return hash, err
 	}
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(reader)
 	f, err := reader.Stat()
 	if err != nil {
 		return hash, err
@@ -70,7 +120,6 @@ func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
 	if err != nil {
 		return hash, err
 	}
-	//return hash, nil
 
 	bh, err := blurhash.Encode(4, 3, img)
 	if err != nil {
@@ -81,19 +130,252 @@ func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
 	return hash, err
 }
 
-// InitQueue reads media folder, detects namespaces & files and loads files into vfsHashes.
-func (hi HashIndexer) InitQueue(ctx context.Context) error {
-	// detects namespaces
-	// get files
-	// load to db
+// ScanFiles reads media folder, detects namespaces & files and loads files into vfsHashes.
+func (hi HashIndexer) ScanFiles(ctx context.Context) (r ScanResults, err error) {
+	// forbid running FS scan in parallel
+	if hi.scanning.Load() {
+		return r, errors.New("already scanning")
+	}
+	hi.scanning.Store(true)
+	defer hi.scanning.Store(false)
 
-	return nil
+	// pipe for CSV -> temp table
+	pr, pw := io.Pipe()
+	cw := csv.NewWriter(pw)
+	cw.Comma = ';'
+
+	// save files hashes and sizes to DB
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer func() {
+			wg.Done()
+			_ = pr.Close()
+		}()
+		err = hi.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
+			if err := hi.dbc.CreateTempHashesTable(ctx, tx); err != nil {
+				return err
+			}
+			scanned, err := hi.dbc.CopyHashesFromSTDIN(tx, pr)
+			if err != nil {
+				return err
+			}
+			r.Scanned = uint64(scanned)
+			updated, duration, err := hi.dbc.UpsertHashesTable(ctx, tx)
+			if err != nil {
+				return err
+			}
+			r.Added = uint64(updated)
+			r.Duration = duration
+			return nil
+		})
+	}()
+
+	// scan files
+	separator := string(filepath.Separator)
+	rootDir := strings.TrimSuffix(hi.vfs.cfg.Path, separator) + separator
+	if err := filepath.Walk(hi.vfs.cfg.Path, hi.walkFn(rootDir, cw)); err != nil {
+		return r, err
+	}
+	cw.Flush()
+	_ = pw.Close()
+	wg.Wait()
+
+	return r, err
+}
+
+type ScanFilesResponse struct {
+	ScanResults `json:",omitempty"`
+	Error       string `json:"error,omitempty"` // error message
+}
+
+func (hi HashIndexer) ScanFilesHandler(w http.ResponseWriter, _ *http.Request) {
+	sr, err := hi.ScanFiles(context.Background())
+	e := json.NewEncoder(w)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = e.Encode(ScanFilesResponse{Error: err.Error()})
+		return
+	}
+	_ = e.Encode(ScanFilesResponse{ScanResults: sr})
+	return
 }
 
 // ProcessQueue gets not indexed data from vfsHashes, index and saves data to db.
 func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
-	// get data from queue
-	// index file
-	// save data to db
-	return nil
+	if hi.indexing.Load() || hi.scanning.Load() {
+		return nil
+	}
+	hi.indexing.Store(true)
+	defer hi.indexing.Store(false)
+
+	err := hi.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
+		// get data from queue
+		list, err := hi.repo.HashesForUpdate(ctx, defaultBatchSize)
+		if err != nil {
+			return err
+		}
+		if len(list) < 1 {
+			return nil
+		}
+
+		// index file
+		now := time.Now().UTC()
+		for i, v := range list {
+			ns := v.Namespace
+			if ns == "default" {
+				ns = ""
+			}
+			list[i].IndexedAt = &now
+			info, err := hi.IndexFile(ns, FileHash(v.Hash).File())
+			if err != nil {
+				list[i].Error = err.Error()
+				continue
+			}
+			list[i].Height = info.Height
+			list[i].Width = info.Width
+			list[i].Blurhash = &info.BlurHash
+		}
+
+		// save data to db
+		_, err = hi.dbc.
+			ModelContext(ctx, &list).
+			Column(
+				db.Columns.VfsHash.Hash,
+				db.Columns.VfsHash.Namespace,
+				db.Columns.VfsHash.Height,
+				db.Columns.VfsHash.Width,
+				db.Columns.VfsHash.IndexedAt,
+				db.Columns.VfsHash.Blurhash,
+			).
+			UpdateNotZero()
+		return err
+	})
+	return err
+}
+
+func (hi HashIndexer) Preview() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+			return
+		}
+		dir, file := path.Split(strings.TrimPrefix(r.URL.Path, "/preview/"))
+		dir = strings.TrimSuffix(dir, "/")
+		file = strings.TrimSuffix(file, filepath.Ext(file))
+		// todo: /size?/
+		ns := "default"
+		if dir != "" && hi.vfs.IsValidNamespace(dir) {
+			ns = dir
+		}
+
+		hash, err := hi.repo.OneVfsHash(context.Background(), &db.VfsHashSearch{
+			Hash:      &file,
+			Namespace: &ns,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if hash == nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		const layout = `Mon, 02 Jan 2006 15:04:05 MST`
+		if imsTime, err := time.Parse(layout, r.Header.Get("If-Modified-Since")); err == nil {
+			if hash.IndexedAt.Before(imsTime) {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+
+		newWidth := 32
+		newHeight := int(math.Round(float64(newWidth*hash.Height) / float64(hash.Width)))
+
+		img, err := blurhash.Decode(*hash.Blurhash, newWidth, newHeight, 1)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		buf := bytes.NewBuffer(nil)
+		if err := png.Encode(buf, img); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Last-Modified", hash.IndexedAt.UTC().Format(layout))
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+		w.Header().Set("Cache-Control", "public, max-age=31536000;")
+
+		_, _ = w.Write(buf.Bytes())
+	}
+}
+
+func (hi HashIndexer) walkFn(rootDir string, cw *csv.Writer) filepath.WalkFunc {
+	return func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !info.Mode().IsRegular() {
+			return nil
+		}
+		relPath := strings.TrimPrefix(path, rootDir)
+		ns := getNs(hi.vfs.cfg.Namespaces, relPath)
+		if !isHashFile(ns, relPath) {
+			return nil
+		}
+
+		ext := filepath.Ext(relPath)
+		baseName := strings.TrimSuffix(filepath.Base(relPath), ext)
+		if len(baseName) > 40 {
+			baseName = baseName[:40]
+		}
+
+		if err := cw.Write([]string{
+			baseName,
+			ns,
+			strconv.FormatInt(info.Size(), 10),
+			strings.TrimPrefix(ext, "."),
+		}); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func getNs(namespaces []string, path string) string {
+	for _, ns := range namespaces {
+		if ns != "" && strings.HasPrefix(path, ns) {
+			return ns
+		}
+	}
+	return ""
+}
+
+// isHashFile checks if file path has a namespace format.
+// e.g. "7/0c/70c565ef460af43688b7ee6251028db9.jpg"
+func isHashFile(ns string, path string) bool {
+	if len(ns) > 0 {
+		path = path[len(ns)+1:]
+	}
+	if len(path) != 41 {
+		return false
+	}
+	if path[1] != filepath.Separator || path[4] != filepath.Separator {
+		return false
+	}
+	if path[0] != path[5] || path[2:4] != path[6:8] {
+		return false
+	}
+	for _, c := range path[5:37] {
+		if !isHex(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isHex(c int32) bool {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
 }

@@ -11,4 +11,5 @@ require (
 	github.com/namsral/flag v1.7.4-pre
 	github.com/vmkteam/rpcgen/v2 v2.1.0
 	github.com/vmkteam/zenrpc/v2 v2.2.1
+	go.uber.org/atomic v1.9.0
 )

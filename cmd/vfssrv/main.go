@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/vmkteam/rpcgen/v2"
-
 	"github.com/vmkteam/vfs"
 	"github.com/vmkteam/vfs/db"
+	"github.com/vmkteam/zenrpc/v2"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-pg/pg/v10"
 	"github.com/namsral/flag"
-	"github.com/vmkteam/zenrpc/v2"
 )
 
 var (
@@ -32,6 +31,7 @@ var (
 	flJWTHeader   = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
 	flFileSize    = fs.Int64("maxsize", 32<<20, "max file size in bytes")
 	flVerboseSQL  = fs.Bool("verbose-sql", false, "log all sql queries")
+	flIndex       = fs.Bool("index", false, "index files on start and enable image previews with blurhash")
 	version       string
 )
 
@@ -69,8 +69,16 @@ func main() {
 
 	http.HandleFunc("/auth-token", issueTokenHandler)
 
-	http.Handle("/upload/hash", corsMiddleware(authMiddleware(http.HandlerFunc(v.HashUploadHandler))))
+	http.Handle("/upload/hash", corsMiddleware(authMiddleware(v.HashUploadHandler(repo))))
 	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, http.FileServer(http.Dir(*flDir))))
+
+	if flIndex != nil && *flIndex {
+		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v)
+		http.Handle("/scan-files", http.HandlerFunc(hi.ScanFilesHandler))
+		http.Handle("/preview/", corsMiddleware(hi.Preview()))
+		go hi.Start()
+		defer hi.Stop()
+	}
 
 	checkErr(http.ListenAndServe(*flAddr, nil))
 }
@@ -195,7 +203,9 @@ type dbLogger struct{}
 func (d dbLogger) BeforeQuery(ctx context.Context, q *pg.QueryEvent) (context.Context, error) {
 	return ctx, nil
 }
-func (d dbLogger) AfterQuery(ctx context.Context, q *pg.QueryEvent) error {
-	log.Println(q.FormattedQuery())
+
+func (d dbLogger) AfterQuery(_ context.Context, q *pg.QueryEvent) error {
+	qs, err := q.FormattedQuery()
+	log.Println(string(qs), err)
 	return nil
 }

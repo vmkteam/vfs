@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -224,6 +225,7 @@ type UploadResponse struct {
 	FileID    int    `json:"id,omitempty"`      // vfs file id
 	Extension string `json:"ext,omitempty"`     // vfs file ext
 	Name      string `json:"name,omitempty"`    // vfs file name
+	Size      int64  `json:"-"`
 }
 
 func (v VFS) writeHashUploadResponse(w http.ResponseWriter, response UploadResponse) error {
@@ -247,7 +249,11 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 	// detect PUT or POST usage
 	if r.Method == http.MethodPut {
 		rd, fileSize = r.Body, r.ContentLength
-		defer r.Body.Close()
+		if r.Body != nil {
+			defer func(b io.ReadCloser) {
+				_ = b.Close()
+			}(r.Body)
+		}
 	} else if r.Method == http.MethodPost {
 		if err := r.ParseMultipartForm(v.cfg.MaxFileSize); err != nil {
 			return UploadResponse{Code: http.StatusInternalServerError, Error: err.Error()}
@@ -257,7 +263,9 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 		if err != nil {
 			return UploadResponse{Code: http.StatusBadRequest, Error: err.Error()}
 		}
-		defer file.Close()
+		defer func(file multipart.File) {
+			_ = file.Close()
+		}(file)
 
 		rd, fileSize = file, handler.Size
 		ext = strings.TrimPrefix(filepath.Ext(handler.Filename), ".")
@@ -281,7 +289,7 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 			return UploadResponse{Error: err.Error(), Code: http.StatusBadRequest}
 		}
 
-		return UploadResponse{Code: http.StatusOK, Extension: ext, Name: name}
+		return UploadResponse{Code: http.StatusOK, Extension: ext, Name: name, Size: fileSize}
 	}
 
 	// start hash upload
@@ -290,27 +298,27 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 		return UploadResponse{Error: err.Error(), Code: http.StatusBadRequest}
 	}
 
-	// index file
-	// insert into db vfsHash
-	// TODO REMOVE
-	hi := NewHashIndexer(db.DB{}, v)
-	if hr, err := hi.IndexFile(ns, FileHash(hash).File()); err == nil {
-		fmt.Println(hr)
-	} else {
-		fmt.Println(err)
-	}
-	// EOF TODO REMOVE
-
 	// write response
-	return UploadResponse{Code: http.StatusOK, Hash: string(hash), WebPath: v.WebHashPath(ns, hash)}
+	return UploadResponse{Code: http.StatusOK, Hash: string(hash), WebPath: v.WebHashPath(ns, hash), Size: fileSize}
 }
 
-func (v VFS) HashUploadHandler(w http.ResponseWriter, r *http.Request) {
-	ns := r.FormValue("ns")
-	ur := v.uploadFile(r, ns, "")
+func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ns := r.FormValue("ns")
+		ur := v.uploadFile(r, ns, "")
+		if repo != nil {
+			if _, err := repo.AddVfsHash(
+				context.Background(),
+				&db.VfsHash{Hash: ur.Hash, Namespace: ns, FileSize: int(ur.Size)},
+			); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 
-	if err := v.writeHashUploadResponse(w, ur); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		if err := v.writeHashUploadResponse(w, ur); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

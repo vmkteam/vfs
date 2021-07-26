@@ -20,7 +20,7 @@ var Columns = struct {
 		ParentFolder string
 	}
 	VfsHash struct {
-		Hash, Namespace, Extension, FileSize, Width, Height, Blurhash, CreatedAt, IndexedAt string
+		Hash, Namespace, Extension, FileSize, Width, Height, Blurhash, CreatedAt, IndexedAt, Error string
 	}
 }{
 	VfsFile: struct {
@@ -57,7 +57,7 @@ var Columns = struct {
 		ParentFolder: "ParentFolder",
 	},
 	VfsHash: struct {
-		Hash, Namespace, Extension, FileSize, Width, Height, Blurhash, CreatedAt, IndexedAt string
+		Hash, Namespace, Extension, FileSize, Width, Height, Blurhash, CreatedAt, IndexedAt, Error string
 	}{
 		Hash:      "hash",
 		Namespace: "namespace",
@@ -68,6 +68,7 @@ var Columns = struct {
 		Blurhash:  "blurhash",
 		CreatedAt: "createdAt",
 		IndexedAt: "indexedAt",
+		Error:     "error",
 	},
 }
 
@@ -145,4 +146,5 @@ type VfsHash struct {
 	Blurhash  *string    `pg:"blurhash"`
 	CreatedAt time.Time  `pg:"createdAt,use_zero"`
 	IndexedAt *time.Time `pg:"indexedAt"`
+	Error     string     `pg:"error,use_zero"`
 }
