@@ -23,15 +23,28 @@ import (
 
 	"github.com/bbrks/go-blurhash"
 	"github.com/go-pg/pg/v10"
+	"github.com/hashicorp/golang-lru"
 	"github.com/vmkteam/vfs/db"
 	"go.uber.org/atomic"
 )
 
 const (
-	defaultBatchSize = 100
-	defaultInterval  = time.Second // todo
-	defaultCacheSize = 1000
+	defaultBatchSize = 64
+	defaultInterval  = time.Second * 5
+	defaultCacheSize = 1024
+	httpTimeLayout   = `Mon, 02 Jan 2006 15:04:05 MST`
 )
+
+type HashIndexer struct {
+	dbc  db.DB
+	vfs  VFS
+	repo *db.VfsRepo
+
+	cache    *lru.ARCCache
+	t        *time.Ticker
+	scanning *atomic.Bool
+	indexing *atomic.Bool
+}
 
 type HashInfo struct {
 	Hash      string
@@ -48,23 +61,20 @@ type ScanResults struct {
 	Duration time.Duration `json:"duration"`
 }
 
-type HashIndexer struct {
-	dbc  db.DB
-	vfs  VFS
-	repo *db.VfsRepo
-
-	t        *time.Ticker
-	scanning *atomic.Bool
-	indexing *atomic.Bool
+type cacheEntry struct {
+	data  []byte
+	mtime time.Time
 }
 
 func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS) *HashIndexer {
+	cache, _ := lru.NewARC(defaultCacheSize)
 	return &HashIndexer{
 		dbc:      dbc,
 		repo:     repo,
 		vfs:      vfs,
 		scanning: atomic.NewBool(false),
 		indexing: atomic.NewBool(false),
+		cache:    cache,
 	}
 }
 
@@ -268,6 +278,12 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 		if dir != "" && hi.vfs.IsValidNamespace(dir) {
 			ns = dir
 		}
+		key := cacheKey(ns, file)
+		entry, ok := hi.cache.Get(key)
+		if ok {
+			writePreview(entry.(cacheEntry), w)
+			return
+		}
 
 		hash, err := hi.repo.OneVfsHash(context.Background(), &db.VfsHashSearch{
 			Hash:      &file,
@@ -282,8 +298,7 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 			return
 		}
 
-		const layout = `Mon, 02 Jan 2006 15:04:05 MST`
-		if imsTime, err := time.Parse(layout, r.Header.Get("If-Modified-Since")); err == nil {
+		if imsTime, err := time.Parse(httpTimeLayout, r.Header.Get("If-Modified-Since")); err == nil {
 			if hash.IndexedAt.Before(imsTime) {
 				w.WriteHeader(http.StatusNotModified)
 				return
@@ -303,13 +318,24 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Last-Modified", hash.IndexedAt.UTC().Format(layout))
-		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
-		w.Header().Set("Cache-Control", "public, max-age=31536000;")
-
-		_, _ = w.Write(buf.Bytes())
+		entry = cacheEntry{data: buf.Bytes(), mtime: hash.IndexedAt.UTC()}
+		hi.cache.Add(key, entry)
+		writePreview(entry.(cacheEntry), w)
+		return
 	}
+}
+
+func writePreview(e cacheEntry, w http.ResponseWriter) {
+	w.Header().Set("Last-Modified", e.mtime.UTC().Format(httpTimeLayout))
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Length", strconv.Itoa(len(e.data)))
+	w.Header().Set("Cache-Control", "public, max-age=31536000;")
+
+	_, _ = w.Write(e.data)
+}
+
+func cacheKey(ns, hash string) string {
+	return ns + "|" + hash
 }
 
 func (hi HashIndexer) walkFn(rootDir string, cw *csv.Writer) filepath.WalkFunc {

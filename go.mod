@@ -8,6 +8,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.0.1
 	github.com/go-pg/pg/v10 v10.9.1
 	github.com/go-pg/urlstruct v1.0.1
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/namsral/flag v1.7.4-pre
 	github.com/vmkteam/rpcgen/v2 v2.1.0
 	github.com/vmkteam/zenrpc/v2 v2.2.1
