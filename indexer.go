@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,11 +80,20 @@ func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS) *HashIndexer {
 }
 
 func (hi HashIndexer) Start() {
+	pnum := runtime.NumCPU() / 2
 	hi.t = time.NewTicker(defaultInterval)
 	for range hi.t.C {
-		if err := hi.ProcessQueue(context.Background()); err != nil {
-			log.Println(err)
+		wg := sync.WaitGroup{}
+		for i := 0; i < pnum; i++ {
+			wg.Add(1)
+			go func() {
+				if err := hi.ProcessQueue(context.Background()); err != nil {
+					log.Println(err)
+				}
+				wg.Done()
+			}()
 		}
+		wg.Wait()
 	}
 }
 
@@ -185,6 +195,8 @@ func (hi HashIndexer) ScanFiles(ctx context.Context) (r ScanResults, err error) 
 	separator := string(filepath.Separator)
 	rootDir := strings.TrimSuffix(hi.vfs.cfg.Path, separator) + separator
 	if err := filepath.Walk(hi.vfs.cfg.Path, hi.walkFn(rootDir, cw)); err != nil {
+		cw.Flush()
+		_ = pw.Close()
 		return r, err
 	}
 	cw.Flush()
@@ -213,15 +225,10 @@ func (hi HashIndexer) ScanFilesHandler(w http.ResponseWriter, _ *http.Request) {
 
 // ProcessQueue gets not indexed data from vfsHashes, index and saves data to db.
 func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
-	if hi.indexing.Load() || hi.scanning.Load() {
-		return nil
-	}
-	hi.indexing.Store(true)
-	defer hi.indexing.Store(false)
-
 	err := hi.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
+		repo := hi.repo.WithTransaction(tx)
 		// get data from queue
-		list, err := hi.repo.HashesForUpdate(ctx, defaultBatchSize)
+		list, err := repo.HashesForUpdate(ctx, defaultBatchSize)
 		if err != nil {
 			return err
 		}
@@ -248,7 +255,7 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 		}
 
 		// save data to db
-		_, err = hi.dbc.
+		_, err = tx.
 			ModelContext(ctx, &list).
 			Column(
 				db.Columns.VfsHash.Hash,
@@ -258,7 +265,7 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 				db.Columns.VfsHash.IndexedAt,
 				db.Columns.VfsHash.Blurhash,
 			).
-			UpdateNotZero()
+			Update()
 		return err
 	})
 	return err
@@ -273,7 +280,6 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 		dir, file := path.Split(strings.TrimPrefix(r.URL.Path, "/preview/"))
 		dir = strings.TrimSuffix(dir, "/")
 		file = strings.TrimSuffix(file, filepath.Ext(file))
-		// todo: /size?/
 		ns := "default"
 		if dir != "" && hi.vfs.IsValidNamespace(dir) {
 			ns = dir
