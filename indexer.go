@@ -388,10 +388,11 @@ func getNs(namespaces []string, path string) string {
 // isHashFile checks if file path has a namespace format.
 // e.g. "7/0c/70c565ef460af43688b7ee6251028db9.jpg"
 func isHashFile(ns string, path string) bool {
-	if len(ns) > 0 {
+	if len(ns) > 0 && len(path) > len(ns) {
 		path = path[len(ns)+1:]
 	}
-	if len(path) != 41 {
+	path = strings.TrimSuffix(path, filepath.Ext(path))
+	if len(path) != 37 {
 		return false
 	}
 	if path[1] != filepath.Separator || path[4] != filepath.Separator {
