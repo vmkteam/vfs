@@ -24,9 +24,10 @@ import (
 
 	"github.com/bbrks/go-blurhash"
 	"github.com/go-pg/pg/v10"
-	"github.com/hashicorp/golang-lru"
-	"github.com/vmkteam/vfs/db"
+	lru "github.com/hashicorp/golang-lru"
 	"go.uber.org/atomic"
+
+	"github.com/vmkteam/vfs/db"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 	defaultInterval  = time.Second * 5
 	defaultCacheSize = 1024
 	httpTimeLayout   = `Mon, 02 Jan 2006 15:04:05 MST`
+	DefaultNamespace = "default"
 )
 
 type HashIndexer struct {
@@ -240,11 +242,11 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 		now := time.Now().UTC()
 		for i, v := range list {
 			ns := v.Namespace
-			if ns == "default" {
+			if ns == DefaultNamespace {
 				ns = ""
 			}
 			list[i].IndexedAt = &now
-			info, err := hi.IndexFile(ns, FileHash(v.Hash).File())
+			info, err := hi.IndexFile(ns, NewFileHash(v.Hash, v.Extension).File())
 			if err != nil {
 				list[i].Error = err.Error()
 				continue
@@ -280,7 +282,7 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 		dir, file := path.Split(strings.TrimPrefix(r.URL.Path, "/preview/"))
 		dir = strings.TrimSuffix(dir, "/")
 		file = strings.TrimSuffix(file, filepath.Ext(file))
-		ns := "default"
+		ns := DefaultNamespace
 		if dir != "" && hi.vfs.IsValidNamespace(dir) {
 			ns = dir
 		}

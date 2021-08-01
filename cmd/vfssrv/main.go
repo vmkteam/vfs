@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/vmkteam/rpcgen/v2"
+	"github.com/vmkteam/zenrpc/v2"
+
 	"github.com/vmkteam/vfs"
 	"github.com/vmkteam/vfs/db"
-	"github.com/vmkteam/zenrpc/v2"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-pg/pg/v10"
@@ -26,6 +27,7 @@ var (
 	flNamespaces  = fs.String("ns", "items,test", "namespaces, separated by comma")
 	flWebPath     = fs.String("webpath", "/media/", "web path to files")
 	flPreviewPath = fs.String("preview-path", "/media/small/", "preview path to image files")
+	flExtensions  = fs.String("ext", "jpg,jpeg,png,gif", "extensions, separated by comma")
 	flDbConn      = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
 	flJWTKey      = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
 	flJWTHeader   = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
@@ -46,6 +48,7 @@ func main() {
 		PreviewPath:    *flPreviewPath,
 		UploadFormName: "Filedata",
 		Namespaces:     strings.Split(*flNamespaces, ","),
+		Extensions:     strings.Split(*flExtensions, ","),
 		Database:       nil,
 	})
 	checkErr(err)

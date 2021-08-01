@@ -404,7 +404,7 @@ func (s Service) HelpUpload() HelpUploadResponse {
 //zenrpc:namespace media namespace
 //zenrpc:mediaType type of media (possible values: small, medium, big, empty string)
 func (s Service) UrlByHash(ctx context.Context, hash, namespace, mediaType string) (string, error) {
-	return s.vfs.WebHashPathWithType(namespace, mediaType, FileHash(hash)), nil
+	return s.vfs.WebHashPathWithType(namespace, mediaType, NewFileHash(hash, "")), nil
 }
 
 // Get Urls by hash list, with namespace and media type

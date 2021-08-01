@@ -10,7 +10,7 @@ import (
 )
 
 func ExampleFileHash() {
-	fh := vfs.FileHash("6698364ea6730f327a26bb8a6d3da3be")
+	fh := vfs.NewFileHash("6698364ea6730f327a26bb8a6d3da3be", "")
 	fmt.Println(fh.Dir())
 	fmt.Println(fh.File())
 	// Output:
@@ -24,14 +24,14 @@ func TestVFS_Upload(t *testing.T) {
 		t.Fatalf("failed to create dir: %v", err)
 	}
 
-	v, err := vfs.New(vfs.Config{Path: "testdata"})
+	v, err := vfs.New(vfs.Config{Path: "testdata", Extensions: []string{"png"}})
 	if err != nil {
 		t.Fatalf("failed to create vfs: %v", err)
 	}
 
 	// hash upload
 	data := strings.Repeat("temp file", 100)
-	path, err := v.HashUpload(strings.NewReader(data), vfs.NamespacePublic)
+	path, err := v.HashUpload(strings.NewReader(data), vfs.NamespacePublic, "png")
 	if err != nil {
 		t.Errorf("failed to perform hash upload: %v", err)
 	} else {

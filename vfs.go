@@ -37,16 +37,29 @@ const (
 	defaultHashFileModePerm = 0644
 )
 
-var ErrInvalidNamespace = errors.New("invalid namespace")
+var (
+	ErrInvalidNamespace = errors.New("invalid namespace")
+	ErrInvalidExtension = errors.New("invalid extension")
+)
 
-type FileHash string
+type FileHash struct {
+	Hash string
+	Ext  string
+}
+
+func NewFileHash(hash, ext string) FileHash {
+	if ext == "" {
+		ext = DefaultHashExtension
+	}
+	return FileHash{Hash: hash, Ext: ext}
+}
 
 func (h FileHash) Dir() string {
-	return string(h[0]) + "/" + string(h[1:3])
+	return string(h.Hash[0]) + "/" + h.Hash[1:3]
 }
 
 func (h FileHash) File() string {
-	return filepath.Join(h.Dir(), string(h)) + "." + DefaultHashExtension
+	return filepath.Join(h.Dir(), h.Hash) + "." + h.Ext
 }
 
 type Config struct {
@@ -56,6 +69,7 @@ type Config struct {
 	PreviewPath      string
 	Database         *pg.Options
 	Namespaces       []string
+	Extensions       []string
 	UploadFormName   string
 	SaltedFilenames  bool
 	SkipFolderVerify bool
@@ -111,14 +125,17 @@ func (v VFS) Move(ns, currentPath, newPath string) error {
 	return os.Rename(currentPath, newPath)
 }
 
-func (v VFS) HashUpload(r io.Reader, ns string) (fh FileHash, err error) {
+func (v VFS) HashUpload(r io.Reader, ns, ext string) (*FileHash, error) {
 	if !v.IsValidNamespace(ns) {
-		return "", ErrInvalidNamespace
+		return nil, ErrInvalidNamespace
+	}
+	if !v.IsValidExtension(ext) {
+		return nil, ErrInvalidExtension
 	}
 
 	tf, err := ioutil.TempFile(v.cfg.Path, "vfs")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	deleteTempFile, tempFilename := true, tf.Name()
@@ -144,35 +161,35 @@ func (v VFS) HashUpload(r io.Reader, ns string) (fh FileHash, err error) {
 	hash := md5.New()
 	wr := io.MultiWriter(hash, tf)
 	if _, err := io.Copy(wr, r); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	hashHex := hex.EncodeToString(hash.Sum(nil)[:16])
-	fh = FileHash(hashHex)
+	fh := NewFileHash(hashHex, ext)
 
 	// create full path
 	err = os.MkdirAll(v.FullDir(ns, fh), defaultModePerm)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// move temp file to data
 	err = os.Rename(tempFilename, v.FullFile(ns, fh))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	err = os.Chmod(v.FullFile(ns, fh), defaultHashFileModePerm)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// sync file with disk
 	if err := tf.Sync(); err != nil {
-		return "", err
+		return nil, err
 	}
 	deleteTempFile = false
 
-	return fh, nil
+	return &fh, nil
 }
 
 func (v VFS) Path(ns, path string) string {
@@ -217,6 +234,20 @@ func (v VFS) IsValidNamespace(ns string) bool {
 	return false
 }
 
+func (v VFS) IsValidExtension(ext string) bool {
+	if ext == "" {
+		return true
+	}
+
+	for _, e := range v.cfg.Extensions {
+		if e == ext {
+			return true
+		}
+	}
+
+	return false
+}
+
 type UploadResponse struct {
 	Code      int    `json:"-"`                 // http status code
 	Error     string `json:"error,omitempty"`   // error message
@@ -239,11 +270,11 @@ func (v VFS) writeHashUploadResponse(w http.ResponseWriter, response UploadRespo
 	return err
 }
 
-func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse {
+func (v VFS) uploadFile(r *http.Request, ns, ext, vfsFilename string) UploadResponse {
 	var (
-		fileSize  int64
-		rd        io.Reader
-		ext, name string
+		fileSize int64
+		rd       io.Reader
+		name     string
 	)
 
 	// detect PUT or POST usage
@@ -293,27 +324,35 @@ func (v VFS) uploadFile(r *http.Request, ns, vfsFilename string) UploadResponse 
 	}
 
 	// start hash upload
-	hash, err := v.HashUpload(rd, ns)
+	fh, err := v.HashUpload(rd, ns, ext)
 	if err != nil {
 		return UploadResponse{Error: err.Error(), Code: http.StatusBadRequest}
 	}
 
 	// write response
-	return UploadResponse{Code: http.StatusOK, Hash: string(hash), WebPath: v.WebHashPath(ns, hash), Size: fileSize}
+	return UploadResponse{Code: http.StatusOK, Hash: fh.Hash, WebPath: v.WebHashPath(ns, *fh), Size: fileSize}
 }
 
 func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ns := r.FormValue("ns")
-		ur := v.uploadFile(r, ns, "")
+		ns, ext := r.FormValue("ns"), strings.ToLower(r.FormValue("ext"))
+		ur := v.uploadFile(r, ns, ext, "")
+
 		if repo != nil {
-			if _, err := repo.AddVfsHash(
+			if ns == "" {
+				ns = DefaultNamespace
+			}
+
+			if ext == "" {
+				ext = DefaultHashExtension
+			}
+
+			if err := repo.SaveVfsHash(
 				context.Background(),
-				&db.VfsHash{Hash: ur.Hash, Namespace: ns, FileSize: int(ur.Size)},
+				&db.VfsHash{Hash: ur.Hash, Namespace: ns, Extension: ext, FileSize: int(ur.Size), CreatedAt: time.Now()},
 			); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-
 		}
 
 		if err := v.writeHashUploadResponse(w, ur); err != nil {
@@ -324,7 +363,7 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 
 func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ns := r.FormValue("ns")
+		ns, ext := r.FormValue("ns"), strings.ToLower(r.FormValue("ext"))
 		folderId, err := strconv.Atoi(r.FormValue("folderId"))
 		if err != nil {
 			http.Error(w, "bad folder "+err.Error(), http.StatusBadRequest)
@@ -344,7 +383,7 @@ func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 		tempFile := "temp" + randSeq(16)
 
 		// upload file
-		ur := v.uploadFile(r, ns, tempFile)
+		ur := v.uploadFile(r, ns, ext, tempFile)
 		if ur.Code == http.StatusOK {
 			id, err := v.createFile(repo, fl, ns, tempFile, ur.Name, ur.Extension)
 			if err != nil {

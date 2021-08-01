@@ -34,6 +34,7 @@ Create table "vfsHashes"
     "width" int not null default 0,
     "height" int not null default 0,
     "blurhash" text,
+    "error" text,
     "createdAt" Timestamp with time zone NOT NULL Default now(),
     "indexedAt" Timestamp with time zone,
     primary key ("hash","namespace")
