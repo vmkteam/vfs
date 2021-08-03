@@ -23,8 +23,8 @@ func NewVfsRepo(db orm.DB) VfsRepo {
 			Tables.VfsFolder.Name: {StatusFilter},
 		},
 		sort: map[string][]SortField{
-			Tables.VfsFile.Name:   {{Column: Columns.VfsFile.CreatedAt, Direction: SortDesc}},
-			Tables.VfsFolder.Name: {{Column: Columns.VfsFolder.CreatedAt, Direction: SortDesc}},
+			Tables.VfsFile.Name:   {{Column: Columns.VfsFile.Title, Direction: SortAsc}},
+			Tables.VfsFolder.Name: {{Column: Columns.VfsFolder.Title, Direction: SortAsc}},
 			Tables.VfsHash.Name:   {{Column: Columns.VfsHash.CreatedAt, Direction: SortDesc}},
 		},
 		join: map[string][]string{
