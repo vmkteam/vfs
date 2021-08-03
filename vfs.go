@@ -338,7 +338,7 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 		ns, ext := r.FormValue("ns"), strings.ToLower(r.FormValue("ext"))
 		ur := v.uploadFile(r, ns, ext, "")
 
-		if repo != nil {
+		if repo != nil && ur.Code == http.StatusOK {
 			if ns == "" {
 				ns = DefaultNamespace
 			}
@@ -351,7 +351,9 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 				context.Background(),
 				&db.VfsHash{Hash: ur.Hash, Namespace: ns, Extension: ext, FileSize: int(ur.Size), CreatedAt: time.Now()},
 			); err != nil {
+				log.Println("failed to save hash into db err=", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 		}
 

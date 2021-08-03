@@ -222,7 +222,6 @@ func (hi HashIndexer) ScanFilesHandler(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	_ = e.Encode(ScanFilesResponse{ScanResults: sr})
-	return
 }
 
 // ProcessQueue gets not indexed data from vfsHashes, index and saves data to db.
@@ -329,7 +328,6 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 		entry = cacheEntry{data: buf.Bytes(), mtime: hash.IndexedAt.UTC()}
 		hi.cache.Add(key, entry)
 		writePreview(entry.(cacheEntry), w)
-		return
 	}
 }
 
