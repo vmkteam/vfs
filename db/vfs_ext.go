@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-pg/pg/v10"
 )
@@ -59,4 +60,43 @@ func (vr VfsRepo) DeleteVfsFiles(ctx context.Context, fileIDs []int64) (bool, er
 	}
 
 	return res.RowsAffected() > 0, err
+}
+
+func (vr VfsRepo) HashesForUpdate(ctx context.Context, limit uint64) (list []VfsHash, err error) {
+	_, err = vr.db.QueryContext(
+		ctx,
+		&list,
+		`SELECT "`+
+			strings.Join([]string{
+				Columns.VfsHash.Hash,
+				Columns.VfsHash.Namespace,
+				Columns.VfsHash.Extension,
+			}, `", "`)+`"`+
+			` FROM "`+Tables.VfsHash.Name+`"`+
+			` WHERE "`+Columns.VfsHash.IndexedAt+`" IS NULL`+
+			` LIMIT ?`+
+			` FOR NO KEY UPDATE SKIP LOCKED`,
+		limit,
+	)
+	return
+}
+
+// SaveVfsHash checks hash in DB and adds it if hash was not found.
+func (vr VfsRepo) SaveVfsHash(ctx context.Context, hash *VfsHash) (err error) {
+	h, err := vr.OneVfsHash(ctx, &VfsHashSearch{
+		Hash:      &hash.Hash,
+		Namespace: &hash.Namespace,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// check hash for existence in db
+	if h != nil {
+		return nil
+	}
+
+	_, err = vr.AddVfsHash(ctx, hash)
+	return err
 }

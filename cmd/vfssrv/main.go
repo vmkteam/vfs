@@ -6,10 +6,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/vmkteam/rpcgen/v2"
+	"github.com/vmkteam/zenrpc/v2"
 
 	"github.com/vmkteam/vfs"
 	"github.com/vmkteam/vfs/db"
@@ -17,22 +19,24 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-pg/pg/v10"
 	"github.com/namsral/flag"
-	"github.com/vmkteam/zenrpc/v2"
 )
 
 var (
-	fs            = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
-	flAddr        = fs.String("addr", "localhost:9999", "listen address")
-	flDir         = fs.String("dir", "testdata", "storage path")
-	flNamespaces  = fs.String("ns", "items,test", "namespaces, separated by comma")
-	flWebPath     = fs.String("webpath", "/media/", "web path to files")
-	flPreviewPath = fs.String("preview-path", "/media/small/", "preview path to image files")
-	flDbConn      = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
-	flJWTKey      = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
-	flJWTHeader   = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
-	flFileSize    = fs.Int64("maxsize", 32<<20, "max file size in bytes")
-	flVerboseSQL  = fs.Bool("verbose-sql", false, "log all sql queries")
-	version       string
+	fs             = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
+	flAddr         = fs.String("addr", "localhost:9999", "listen address")
+	flDir          = fs.String("dir", "testdata", "storage path")
+	flNamespaces   = fs.String("ns", "items,test", "namespaces, separated by comma")
+	flWebPath      = fs.String("webpath", "/media/", "web path to files")
+	flPreviewPath  = fs.String("preview-path", "/media/small/", "preview path to image files")
+	flExtensions   = fs.String("ext", "jpg,jpeg,png,gif", "extensions, separated by comma")
+	flDbConn       = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
+	flJWTKey       = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
+	flJWTHeader    = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
+	flFileSize     = fs.Int64("maxsize", 32<<20, "max file size in bytes")
+	flVerboseSQL   = fs.Bool("verbose-sql", false, "log all sql queries")
+	flIndex        = fs.Bool("index", false, "index files on start and enable image previews with blurhash")
+	flIndexWorkers = fs.Int("index-workers", runtime.NumCPU()/2, "total running indexer workers, default is cores/2")
+	version        string
 )
 
 func main() {
@@ -46,6 +50,7 @@ func main() {
 		PreviewPath:    *flPreviewPath,
 		UploadFormName: "Filedata",
 		Namespaces:     strings.Split(*flNamespaces, ","),
+		Extensions:     strings.Split(*flExtensions, ","),
 		Database:       nil,
 	})
 	checkErr(err)
@@ -69,8 +74,16 @@ func main() {
 
 	http.HandleFunc("/auth-token", issueTokenHandler)
 
-	http.Handle("/upload/hash", corsMiddleware(authMiddleware(http.HandlerFunc(v.HashUploadHandler))))
+	http.Handle("/upload/hash", corsMiddleware(authMiddleware(v.HashUploadHandler(repo))))
 	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, http.FileServer(http.Dir(*flDir))))
+
+	if flIndex != nil && *flIndex {
+		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v, *flIndexWorkers)
+		http.Handle("/scan-files", http.HandlerFunc(hi.ScanFilesHandler))
+		http.Handle("/preview/", corsMiddleware(hi.Preview()))
+		go hi.Start()
+		defer hi.Stop()
+	}
 
 	checkErr(http.ListenAndServe(*flAddr, nil))
 }
@@ -195,7 +208,9 @@ type dbLogger struct{}
 func (d dbLogger) BeforeQuery(ctx context.Context, q *pg.QueryEvent) (context.Context, error) {
 	return ctx, nil
 }
-func (d dbLogger) AfterQuery(ctx context.Context, q *pg.QueryEvent) error {
-	log.Println(q.FormattedQuery())
+
+func (d dbLogger) AfterQuery(_ context.Context, q *pg.QueryEvent) error {
+	qs, err := q.FormattedQuery()
+	log.Println(string(qs), err)
 	return nil
 }

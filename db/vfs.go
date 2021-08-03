@@ -25,10 +25,12 @@ func NewVfsRepo(db orm.DB) VfsRepo {
 		sort: map[string][]SortField{
 			Tables.VfsFile.Name:   {{Column: Columns.VfsFile.Title, Direction: SortAsc}},
 			Tables.VfsFolder.Name: {{Column: Columns.VfsFolder.Title, Direction: SortAsc}},
+			Tables.VfsHash.Name:   {{Column: Columns.VfsHash.CreatedAt, Direction: SortDesc}},
 		},
 		join: map[string][]string{
 			Tables.VfsFile.Name:   {TableColumns, Columns.VfsFile.Folder},
 			Tables.VfsFolder.Name: {TableColumns, Columns.VfsFolder.ParentFolder},
+			Tables.VfsHash.Name:   {TableColumns},
 		},
 	}
 }
@@ -116,7 +118,7 @@ func (vr VfsRepo) UpdateVfsFile(ctx context.Context, vfsFile *VfsFile, ops ...Op
 	return res.RowsAffected() > 0, err
 }
 
-//  DeleteVfsFile set statusId to deleted in DB.
+// DeleteVfsFile set statusId to deleted in DB.
 func (vr VfsRepo) DeleteVfsFile(ctx context.Context, id int) (deleted bool, err error) {
 	vfsFile := &VfsFile{ID: id, StatusID: StatusDeleted}
 
@@ -187,9 +189,85 @@ func (vr VfsRepo) UpdateVfsFolder(ctx context.Context, vfsFolder *VfsFolder, ops
 	return res.RowsAffected() > 0, err
 }
 
-//  DeleteVfsFolder set statusId to deleted in DB.
+// DeleteVfsFolder set statusId to deleted in DB.
 func (vr VfsRepo) DeleteVfsFolder(ctx context.Context, id int) (deleted bool, err error) {
 	vfsFolder := &VfsFolder{ID: id, StatusID: StatusDeleted}
 
 	return vr.UpdateVfsFolder(ctx, vfsFolder, WithColumns(Columns.VfsFolder.StatusID))
+}
+
+/*** VfsHash ***/
+
+// FullVfsHash returns full joins with all columns
+func (vr VfsRepo) FullVfsHash() OpFunc {
+	return WithColumns(vr.join[Tables.VfsHash.Name]...)
+}
+
+// DefaultVfsHashSort returns default sort.
+func (vr VfsRepo) DefaultVfsHashSort() OpFunc {
+	return WithSort(vr.sort[Tables.VfsHash.Name]...)
+}
+
+// VfsHashByID is a function that returns VfsHash by ID(s) or nil.
+func (vr VfsRepo) VfsHashByID(ctx context.Context, hash string, namespace string, ops ...OpFunc) (*VfsHash, error) {
+	return vr.OneVfsHash(ctx, &VfsHashSearch{Hash: &hash, Namespace: &namespace}, ops...)
+}
+
+// OneVfsHash is a function that returns one VfsHash by filters. It could return pg.ErrMultiRows.
+func (vr VfsRepo) OneVfsHash(ctx context.Context, search *VfsHashSearch, ops ...OpFunc) (*VfsHash, error) {
+	obj := &VfsHash{}
+	err := buildQuery(ctx, vr.db, obj, search, vr.filters[Tables.VfsHash.Name], PagerTwo, ops...).Select()
+
+	switch err {
+	case pg.ErrMultiRows:
+		return nil, err
+	case pg.ErrNoRows:
+		return nil, nil
+	}
+
+	return obj, err
+}
+
+// VfsHashesByFilters returns VfsHash list.
+func (vr VfsRepo) VfsHashesByFilters(ctx context.Context, search *VfsHashSearch, pager Pager, ops ...OpFunc) (vfsHashes []VfsHash, err error) {
+	err = buildQuery(ctx, vr.db, &vfsHashes, search, vr.filters[Tables.VfsHash.Name], pager, ops...).Select()
+	return
+}
+
+// CountVfsHashes returns count
+func (vr VfsRepo) CountVfsHashes(ctx context.Context, search *VfsHashSearch, ops ...OpFunc) (int, error) {
+	return buildQuery(ctx, vr.db, &VfsHash{}, search, vr.filters[Tables.VfsHash.Name], PagerOne, ops...).Count()
+}
+
+// AddVfsHash adds VfsHash to DB.
+func (vr VfsRepo) AddVfsHash(ctx context.Context, vfsHash *VfsHash, ops ...OpFunc) (*VfsHash, error) {
+	q := vr.db.ModelContext(ctx, vfsHash)
+	applyOps(q, ops...)
+	_, err := q.Insert()
+
+	return vfsHash, err
+}
+
+// UpdateVfsHash updates VfsHash in DB.
+func (vr VfsRepo) UpdateVfsHash(ctx context.Context, vfsHash *VfsHash, ops ...OpFunc) (bool, error) {
+	q := vr.db.ModelContext(ctx, vfsHash).WherePK()
+	applyOps(q, ops...)
+	res, err := q.Update()
+	if err != nil {
+		return false, err
+	}
+
+	return res.RowsAffected() > 0, err
+}
+
+// DeleteVfsHash deletes VfsHash from DB.
+func (vr VfsRepo) DeleteVfsHash(ctx context.Context, hash string, namespace string) (deleted bool, err error) {
+	vfsHash := &VfsHash{Hash: hash, Namespace: namespace}
+
+	res, err := vr.db.ModelContext(ctx, vfsHash).WherePK().Delete()
+	if err != nil {
+		return false, err
+	}
+
+	return res.RowsAffected() > 0, err
 }

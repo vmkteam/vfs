@@ -59,7 +59,7 @@ type VfsFileSearch struct {
 	FolderID      *int
 	Title         *string
 	Path          *string
-	Params        *string
+	Params        *VfsFileParams
 	IsFavorite    *bool
 	MimeType      *string
 	FileSize      *int
@@ -69,7 +69,6 @@ type VfsFileSearch struct {
 	IDs           []int
 	TitleILike    *string
 	PathILike     *string
-	ParamsILike   *string
 	MimeTypeILike *string
 }
 
@@ -118,9 +117,6 @@ func (vfs *VfsFileSearch) Apply(query *orm.Query) *orm.Query {
 	}
 	if vfs.PathILike != nil {
 		Filter{Columns.VfsFile.Path, *vfs.PathILike, SearchTypeILike, false}.Apply(query)
-	}
-	if vfs.ParamsILike != nil {
-		Filter{Columns.VfsFile.Params, *vfs.ParamsILike, SearchTypeILike, false}.Apply(query)
 	}
 	if vfs.MimeTypeILike != nil {
 		Filter{Columns.VfsFile.MimeType, *vfs.MimeTypeILike, SearchTypeILike, false}.Apply(query)
@@ -193,5 +189,97 @@ func (vfs *VfsFolderSearch) Q() applier {
 			return query, nil
 		}
 		return vfs.Apply(query), nil
+	}
+}
+
+type VfsHashSearch struct {
+	search
+
+	Hash           *string
+	Namespace      *string
+	Extension      *string
+	FileSize       *int
+	Width          *int
+	Height         *int
+	Blurhash       *string
+	CreatedAt      *time.Time
+	IndexedAt      *time.Time
+	Error          *string
+	Hashes         []string
+	HashILike      *string
+	Namespaces     []string
+	NamespaceILike *string
+	ExtensionILike *string
+	BlurhashILike  *string
+	ErrorILike     *string
+}
+
+func (vhs *VfsHashSearch) Apply(query *orm.Query) *orm.Query {
+	if vhs == nil {
+		return query
+	}
+	if vhs.Hash != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Hash, vhs.Hash)
+	}
+	if vhs.Namespace != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Namespace, vhs.Namespace)
+	}
+	if vhs.Extension != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Extension, vhs.Extension)
+	}
+	if vhs.FileSize != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.FileSize, vhs.FileSize)
+	}
+	if vhs.Width != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Width, vhs.Width)
+	}
+	if vhs.Height != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Height, vhs.Height)
+	}
+	if vhs.Blurhash != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Blurhash, vhs.Blurhash)
+	}
+	if vhs.CreatedAt != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.CreatedAt, vhs.CreatedAt)
+	}
+	if vhs.IndexedAt != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.IndexedAt, vhs.IndexedAt)
+	}
+	if vhs.Error != nil {
+		vhs.where(query, Tables.VfsHash.Alias, Columns.VfsHash.Error, vhs.Error)
+	}
+	if len(vhs.Hashes) > 0 {
+		Filter{Columns.VfsHash.Hash, vhs.Hashes, SearchTypeArray, false}.Apply(query)
+	}
+	if vhs.HashILike != nil {
+		Filter{Columns.VfsHash.Hash, *vhs.HashILike, SearchTypeILike, false}.Apply(query)
+	}
+	if len(vhs.Namespaces) > 0 {
+		Filter{Columns.VfsHash.Namespace, vhs.Namespaces, SearchTypeArray, false}.Apply(query)
+	}
+	if vhs.NamespaceILike != nil {
+		Filter{Columns.VfsHash.Namespace, *vhs.NamespaceILike, SearchTypeILike, false}.Apply(query)
+	}
+	if vhs.ExtensionILike != nil {
+		Filter{Columns.VfsHash.Extension, *vhs.ExtensionILike, SearchTypeILike, false}.Apply(query)
+	}
+	if vhs.BlurhashILike != nil {
+		Filter{Columns.VfsHash.Blurhash, *vhs.BlurhashILike, SearchTypeILike, false}.Apply(query)
+	}
+	if vhs.ErrorILike != nil {
+		Filter{Columns.VfsHash.Error, *vhs.ErrorILike, SearchTypeILike, false}.Apply(query)
+	}
+
+	vhs.apply(query)
+
+	return query
+}
+
+func (vhs *VfsHashSearch) Q() applier {
+	return func(query *orm.Query) (*orm.Query, error) {
+		if vhs == nil {
+			return query, nil
+		}
+		return vhs.Apply(query), nil
 	}
 }
