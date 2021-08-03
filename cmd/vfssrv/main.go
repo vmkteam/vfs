@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -21,20 +22,21 @@ import (
 )
 
 var (
-	fs            = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
-	flAddr        = fs.String("addr", "localhost:9999", "listen address")
-	flDir         = fs.String("dir", "testdata", "storage path")
-	flNamespaces  = fs.String("ns", "items,test", "namespaces, separated by comma")
-	flWebPath     = fs.String("webpath", "/media/", "web path to files")
-	flPreviewPath = fs.String("preview-path", "/media/small/", "preview path to image files")
-	flExtensions  = fs.String("ext", "jpg,jpeg,png,gif", "extensions, separated by comma")
-	flDbConn      = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
-	flJWTKey      = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
-	flJWTHeader   = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
-	flFileSize    = fs.Int64("maxsize", 32<<20, "max file size in bytes")
-	flVerboseSQL  = fs.Bool("verbose-sql", false, "log all sql queries")
-	flIndex       = fs.Bool("index", false, "index files on start and enable image previews with blurhash")
-	version       string
+	fs             = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
+	flAddr         = fs.String("addr", "localhost:9999", "listen address")
+	flDir          = fs.String("dir", "testdata", "storage path")
+	flNamespaces   = fs.String("ns", "items,test", "namespaces, separated by comma")
+	flWebPath      = fs.String("webpath", "/media/", "web path to files")
+	flPreviewPath  = fs.String("preview-path", "/media/small/", "preview path to image files")
+	flExtensions   = fs.String("ext", "jpg,jpeg,png,gif", "extensions, separated by comma")
+	flDbConn       = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
+	flJWTKey       = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
+	flJWTHeader    = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
+	flFileSize     = fs.Int64("maxsize", 32<<20, "max file size in bytes")
+	flVerboseSQL   = fs.Bool("verbose-sql", false, "log all sql queries")
+	flIndex        = fs.Bool("index", false, "index files on start and enable image previews with blurhash")
+	flIndexWorkers = fs.Int("index-workers", runtime.NumCPU()/2, "total running indexer workers, default is cores/2")
+	version        string
 )
 
 func main() {
@@ -76,7 +78,7 @@ func main() {
 	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, http.FileServer(http.Dir(*flDir))))
 
 	if flIndex != nil && *flIndex {
-		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v)
+		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v, *flIndexWorkers)
 		http.Handle("/scan-files", http.HandlerFunc(hi.ScanFilesHandler))
 		http.Handle("/preview/", corsMiddleware(hi.Preview()))
 		go hi.Start()

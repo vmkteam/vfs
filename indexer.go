@@ -16,7 +16,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,9 +38,10 @@ const (
 )
 
 type HashIndexer struct {
-	dbc  db.DB
-	vfs  VFS
-	repo *db.VfsRepo
+	dbc          db.DB
+	vfs          VFS
+	repo         *db.VfsRepo
+	totalWorkers int
 
 	cache    *lru.ARCCache
 	t        *time.Ticker
@@ -69,24 +69,24 @@ type cacheEntry struct {
 	mtime time.Time
 }
 
-func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS) *HashIndexer {
+func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int) *HashIndexer {
 	cache, _ := lru.NewARC(defaultCacheSize)
 	return &HashIndexer{
-		dbc:      dbc,
-		repo:     repo,
-		vfs:      vfs,
-		scanning: atomic.NewBool(false),
-		indexing: atomic.NewBool(false),
-		cache:    cache,
+		dbc:          dbc,
+		repo:         repo,
+		vfs:          vfs,
+		scanning:     atomic.NewBool(false),
+		indexing:     atomic.NewBool(false),
+		cache:        cache,
+		totalWorkers: totalWorkers,
 	}
 }
 
 func (hi HashIndexer) Start() {
-	pnum := runtime.NumCPU() / 2
 	hi.t = time.NewTicker(defaultInterval)
 	for range hi.t.C {
 		wg := sync.WaitGroup{}
-		for i := 0; i < pnum; i++ {
+		for i := 0; i < hi.totalWorkers; i++ {
 			wg.Add(1)
 			go func() {
 				if err := hi.ProcessQueue(context.Background()); err != nil {
