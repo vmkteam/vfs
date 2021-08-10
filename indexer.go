@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	defaultBatchSize = 64
 	defaultInterval  = time.Second * 5
 	defaultCacheSize = 1024
 	httpTimeLayout   = `Mon, 02 Jan 2006 15:04:05 MST`
@@ -42,6 +41,7 @@ type HashIndexer struct {
 	vfs          VFS
 	repo         *db.VfsRepo
 	totalWorkers int
+	batchSize    uint64
 
 	cache    *lru.ARCCache
 	t        *time.Ticker
@@ -69,7 +69,7 @@ type cacheEntry struct {
 	mtime time.Time
 }
 
-func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int) *HashIndexer {
+func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64) *HashIndexer {
 	cache, _ := lru.NewARC(defaultCacheSize)
 	return &HashIndexer{
 		dbc:          dbc,
@@ -79,6 +79,7 @@ func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int) *Has
 		indexing:     atomic.NewBool(false),
 		cache:        cache,
 		totalWorkers: totalWorkers,
+		batchSize:    batchSize,
 	}
 }
 
@@ -229,7 +230,7 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 	err := hi.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		repo := hi.repo.WithTransaction(tx)
 		// get data from queue
-		list, err := repo.HashesForUpdate(ctx, defaultBatchSize)
+		list, err := repo.HashesForUpdate(ctx, hi.batchSize)
 		if err != nil {
 			return err
 		}
