@@ -40,6 +40,7 @@ const (
 var (
 	ErrInvalidNamespace = errors.New("invalid namespace")
 	ErrInvalidExtension = errors.New("invalid extension")
+	ErrInvalidMimeType  = errors.New("invalid mime type")
 )
 
 type FileHash struct {
@@ -70,6 +71,7 @@ type Config struct {
 	Database         *pg.Options
 	Namespaces       []string
 	Extensions       []string
+	MimeTypes        []string
 	UploadFormName   string
 	SaltedFilenames  bool
 	SkipFolderVerify bool
@@ -164,6 +166,11 @@ func (v VFS) HashUpload(r io.Reader, ns, ext string) (*FileHash, error) {
 		return nil, err
 	}
 
+	mType, _ := mimeType(tf)
+	if !v.IsValidMimeType(mType) {
+		return nil, ErrInvalidMimeType
+	}
+
 	hashHex := hex.EncodeToString(hash.Sum(nil)[:16])
 	fh := NewFileHash(hashHex, ext)
 
@@ -241,6 +248,20 @@ func (v VFS) IsValidExtension(ext string) bool {
 
 	for _, e := range v.cfg.Extensions {
 		if e == ext {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (v VFS) IsValidMimeType(mType string) bool {
+	if mType == "" {
+		return true
+	}
+
+	for _, m := range v.cfg.MimeTypes {
+		if m == mType {
 			return true
 		}
 	}
@@ -423,12 +444,7 @@ func (v VFS) createFile(repo db.VfsRepo, folder *db.VfsFolder, ns, relFilename, 
 		}
 
 		// detect mime type
-		_, err = reader.Seek(0, io.SeekStart)
-		if err == nil {
-			if mt, err := mimetype.DetectReader(reader); err == nil {
-				mType = mt.String()
-			}
-		}
+		mType, _ = mimeType(reader)
 
 		reader.Close()
 	}
@@ -485,4 +501,17 @@ func randSeq(n int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+func mimeType(reader *os.File) (string, error) {
+	// detect mime type
+	_, err := reader.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", err
+	}
+	mt, err := mimetype.DetectReader(reader)
+	if err != nil {
+		return "", err
+	}
+	return mt.String(), nil
 }

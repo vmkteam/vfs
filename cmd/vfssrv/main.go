@@ -28,7 +28,8 @@ var (
 	flNamespaces     = fs.String("ns", "items,test", "namespaces, separated by comma")
 	flWebPath        = fs.String("webpath", "/media/", "web path to files")
 	flPreviewPath    = fs.String("preview-path", "/media/small/", "preview path to image files")
-	flExtensions     = fs.String("ext", "jpg,jpeg,png,gif", "extensions, separated by comma")
+	flExtensions     = fs.String("ext", "jpg,jpeg,png,gif", "allowed file extensions for hash upload, separated by comma")
+	flMimeTypes      = fs.String("mime", "image/jpeg,image/png,image/gif", "allowed mime types for hash upload, separated by comma")
 	flDbConn         = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
 	flJWTKey         = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
 	flJWTHeader      = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
@@ -52,6 +53,7 @@ func main() {
 		UploadFormName: "Filedata",
 		Namespaces:     strings.Split(*flNamespaces, ","),
 		Extensions:     strings.Split(*flExtensions, ","),
+		MimeTypes:      strings.Split(*flMimeTypes, ","),
 		Database:       nil,
 	})
 	checkErr(err)

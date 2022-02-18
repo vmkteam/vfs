@@ -1,9 +1,10 @@
 package vfs_test
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/vmkteam/vfs"
@@ -24,21 +25,24 @@ func TestVFS_Upload(t *testing.T) {
 		t.Fatalf("failed to create dir: %v", err)
 	}
 
-	v, err := vfs.New(vfs.Config{Path: "testdata", Extensions: []string{"png"}})
+	v, err := vfs.New(vfs.Config{Path: "testdata", Extensions: []string{"png"}, MimeTypes: []string{"image/png"}})
 	if err != nil {
 		t.Fatalf("failed to create vfs: %v", err)
 	}
 
 	// hash upload
-	data := strings.Repeat("temp file", 100)
-	path, err := v.HashUpload(strings.NewReader(data), vfs.NamespacePublic, "png")
+	data, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Errorf("failed to decode base64 image: %v", err)
+	}
+	path, err := v.HashUpload(bytes.NewReader(data), vfs.NamespacePublic, "png")
 	if err != nil {
 		t.Errorf("failed to perform hash upload: %v", err)
 	} else {
 		t.Logf("hash=%v dir=%s file=%s", path, path.Dir(), path.File())
 	}
 
-	err = v.Upload(strings.NewReader(data), "201901/123_456.png", vfs.NamespacePublic)
+	err = v.Upload(bytes.NewReader(data), "201901/123_456.png", vfs.NamespacePublic)
 	if err != nil {
 		t.Errorf("failed to perform upload: %v", err)
 	}
