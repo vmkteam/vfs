@@ -23,7 +23,7 @@ import (
 
 var (
 	fs               = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
-	flAddr           = fs.String("addr", "localhost:9999", "listen address")
+	flAddr           = fs.String("addr", "0.0.0.0:9999", "listen address")
 	flDir            = fs.String("dir", "testdata", "storage path")
 	flNamespaces     = fs.String("ns", "items,test", "namespaces, separated by comma")
 	flWebPath        = fs.String("webpath", "/media/", "web path to files")

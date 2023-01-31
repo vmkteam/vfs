@@ -12,7 +12,6 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"mime/multipart"
@@ -135,7 +134,7 @@ func (v VFS) HashUpload(r io.Reader, ns, ext string) (*FileHash, error) {
 		return nil, ErrInvalidExtension
 	}
 
-	tf, err := ioutil.TempFile(v.cfg.Path, "vfs")
+	tf, err := os.CreateTemp(v.cfg.Path, "vfs")
 	if err != nil {
 		return nil, err
 	}

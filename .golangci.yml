@@ -74,7 +74,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
     - dogsled
     - dupl
     - goconst
@@ -85,8 +84,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - structcheck
     - typecheck
     - unconvert
     - unused
-    - varcheck

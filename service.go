@@ -55,6 +55,7 @@ func (s Service) folderByID(ctx context.Context, id int) (*db.VfsFolder, error) 
 }
 
 // Get Folder with Sub Folders.
+//
 //zenrpc:rootFolderId=1
 //zenrpc:404 Folder not found
 func (s Service) GetFolder(ctx context.Context, rootFolderId int) (*Folder, error) {
@@ -91,6 +92,7 @@ func (s Service) GetFolderBranch(ctx context.Context, folderId int) ([]Folder, e
 }
 
 // Get Files
+//
 //zenrpc:folderId root folder id
 //zenrpc:query file name
 //zenrpc:sortField="createdAt" createdAt, title or fileSize
@@ -128,6 +130,7 @@ func (s Service) GetFiles(ctx context.Context, folderId int, query *string, sort
 }
 
 // Count Files
+//
 //zenrpc:folderId root folder id
 //zenrpc:query file name
 func (s Service) CountFiles(ctx context.Context, folderId int, query *string) (int, error) {
@@ -141,6 +144,7 @@ func (s Service) CountFiles(ctx context.Context, folderId int, query *string) (i
 }
 
 // Move Files
+//
 //zenrpc:400 empty file ids
 func (s Service) MoveFiles(ctx context.Context, fileIds []int64, destinationFolderId int) (bool, error) {
 	fl, err := s.folderByID(ctx, destinationFolderId)
@@ -400,6 +404,7 @@ func (s Service) HelpUpload() HelpUploadResponse {
 }
 
 // Get Url by hash, namespace and media type
+//
 //zenrpc:hash media hash
 //zenrpc:namespace media namespace
 //zenrpc:mediaType type of media (possible values: small, medium, big, empty string)
@@ -408,6 +413,7 @@ func (s Service) UrlByHash(ctx context.Context, hash, namespace, mediaType strin
 }
 
 // Get Urls by hash list, with namespace and media type
+//
 //zenrpc:hashList media hash list
 //zenrpc:namespace media namespace
 //zenrpc:mediaType type of media (possible values: small, medium, big, empty string)

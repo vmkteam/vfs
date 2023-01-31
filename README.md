@@ -1,4 +1,6 @@
 # VFS Service
+[![Release](https://img.shields.io/github/release/vmkteam/vfs.svg)](https://github.com/vmkteam/vfs/releases/latest)
+[![Build Status](https://github.com/vmkteam/vfs/actions/workflows/go.yml/badge.svg?branch=master)](https://github.com/vmkteam/vfs/actions)
 
 ## Examples
 

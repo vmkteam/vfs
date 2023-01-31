@@ -4,6 +4,8 @@ MAIN := cmd/vfssrv/main.go
 
 PKG := `go list -mod=vendor -f {{.Dir}} ./...`
 
+LINT_VERSION := v1.50.1
+
 ifeq ($(RACE),1)
 	GOFLAGS=-race
 endif
@@ -14,7 +16,9 @@ LDFLAGS=-ldflags "-X=main.version=$(VERSION)"
 all: tools rebuild
 
 tools:
-	@go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
+	@go install github.com/vmkteam/mfd-generator@latest
+	@go install github.com/vmkteam/zenrpc/v2/zenrpc@latest
+	@curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${LINT_VERSION}
 
 fmt:
 	@goimports -local ${LOCAL_PKG} -l -w $(PKG)
