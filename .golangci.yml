@@ -12,7 +12,7 @@ run:
   tests: true
 
   # use vendor dir
-  modules-download-mode: vendor
+  modules-download-mode: mod
 
 output:
   # colored-line-number|line-number|json|tab|checkstyle|code-climate, default is "colored-line-number"

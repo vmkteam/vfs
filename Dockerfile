@@ -1,5 +1,5 @@
 FROM golang:1.18-alpine AS builder
-ADD . /build
+COPY . /build
 RUN cd /build && go install -mod=mod ./cmd/vfssrv
 
 FROM alpine:latest

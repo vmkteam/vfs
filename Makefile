@@ -2,7 +2,7 @@ NAME := vfs
 LOCAL_PKG := github.com/vmkteam/vfs
 MAIN := cmd/vfssrv/main.go
 
-PKG := `go list -mod=vendor -f {{.Dir}} ./...`
+PKG := `go list -f {{.Dir}} ./...`
 
 LINT_VERSION := v1.50.1
 
@@ -12,8 +12,6 @@ endif
 
 VERSION?=$(shell git version > /dev/null 2>&1 && git describe --dirty=-dirty --always 2>/dev/null || echo NO_VERSION)
 LDFLAGS=-ldflags "-X=main.version=$(VERSION)"
-
-all: tools rebuild
 
 tools:
 	@go install github.com/vmkteam/mfd-generator@latest
@@ -26,29 +24,24 @@ fmt:
 lint:
 	@golangci-lint run -c .golangci.yml
 
-rebuild:
-	@CGO_ENABLED=0 go build -a $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
-	@go mod vendor
-
 build:
-	@CGO_ENABLED=0 go build -mod=vendor $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
+	@CGO_ENABLED=0 go build $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
 
 run:
 	@echo "Compiling"
-	@go run -mod=vendor $(LDFLAGS) $(GOFLAGS) $(MAIN)
+	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN)
 
 test:
-	@go test -mod=vendor $(LDFLAGS) $(GOFLAGS) ./...
+	@go test $(LDFLAGS) $(GOFLAGS) ./...
 
 test-short:
-	@go test -mod=vendor $(LDFLAGS) $(GOFLAGS) -test.short -test.run="Test[^D][^B]" ./...
+	@go test $(LDFLAGS) $(GOFLAGS) -test.short -test.run="Test[^D][^B]" ./...
 
 generate:
 	@go generate
 
 mod:
 	@go mod tidy
-	@go mod vendor
 
 mfd-xml:
 	@mfd-generator xml -c "postgres://postgres:postgres@localhost:5432/vfs?sslmode=disable" -m ./docs/model/vfs.mfd -n "vfs:vfsFiles,vfsFolders,vfsHashes"
