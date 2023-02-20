@@ -54,7 +54,7 @@ func (s Service) folderByID(ctx context.Context, id int) (*db.VfsFolder, error) 
 	return dbc, nil
 }
 
-// Get Folder with Sub Folders.
+// GetFolder returns Folder with sub folders.
 //
 //zenrpc:rootFolderId=1
 //zenrpc:404 Folder not found
@@ -72,7 +72,7 @@ func (s Service) GetFolder(ctx context.Context, rootFolderId int) (*Folder, erro
 	return NewFullFolder(dbf, childFolders), nil
 }
 
-// Get Folder Branch
+// GetFolderBranch returns Folder branch.
 func (s Service) GetFolderBranch(ctx context.Context, folderId int) ([]Folder, error) {
 	dbf, err := s.folderByID(ctx, folderId)
 	if err != nil {
@@ -91,7 +91,7 @@ func (s Service) GetFolderBranch(ctx context.Context, folderId int) ([]Folder, e
 	return folders, nil
 }
 
-// Get Files
+// GetFiles returns list of files.
 //
 //zenrpc:folderId root folder id
 //zenrpc:query file name
@@ -129,7 +129,7 @@ func (s Service) GetFiles(ctx context.Context, folderId int, query *string, sort
 	return files, nil
 }
 
-// Count Files
+// CountFiles returns count of files.
 //
 //zenrpc:folderId root folder id
 //zenrpc:query file name
@@ -143,7 +143,7 @@ func (s Service) CountFiles(ctx context.Context, folderId int, query *string) (i
 	return count, nil
 }
 
-// Move Files
+// MoveFiles move files to destination folder.
 //
 //zenrpc:400 empty file ids
 func (s Service) MoveFiles(ctx context.Context, fileIds []int64, destinationFolderId int) (bool, error) {
@@ -164,7 +164,7 @@ func (s Service) MoveFiles(ctx context.Context, fileIds []int64, destinationFold
 	return r, nil
 }
 
-// Delete Files
+// DeleteFiles remove files.
 func (s Service) DeleteFiles(ctx context.Context, fileIds []int64) (bool, error) {
 	if len(fileIds) == 0 {
 		return false, ErrInvalidInput
@@ -178,7 +178,7 @@ func (s Service) DeleteFiles(ctx context.Context, fileIds []int64) (bool, error)
 	return r, nil
 }
 
-// Rename File on Server
+// SetFilePhysicalName renames File on server.
 func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name string) (bool, error) {
 	if fileId == 0 || name == "" {
 		return false, ErrInvalidInput
@@ -220,7 +220,7 @@ func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name strin
 	return true, nil
 }
 
-// Search Folder by File Id
+// SearchFolderByFileId return Folder by File id.
 func (s Service) SearchFolderByFileId(ctx context.Context, fileId int) (*Folder, error) {
 	if fileId == 0 {
 		return nil, ErrInvalidInput
@@ -236,7 +236,7 @@ func (s Service) SearchFolderByFileId(ctx context.Context, fileId int) (*Folder,
 	return NewFolder(f.Folder), nil
 }
 
-// Search Folder by Filename
+// SearchFolderByFile return Folder by File name.
 func (s Service) SearchFolderByFile(ctx context.Context, filename string) (*Folder, error) {
 	if filename == "" {
 		return nil, ErrInvalidInput
@@ -255,7 +255,7 @@ func (s Service) SearchFolderByFile(ctx context.Context, filename string) (*Fold
 	return NewFolder(f.Folder), nil
 }
 
-// Get Favorites
+// GetFavorites return favorites list.
 func (s Service) GetFavorites(ctx context.Context) ([]Folder, error) {
 	b := true
 	list, err := s.repo.VfsFoldersByFilters(ctx, &db.VfsFolderSearch{IsFavorite: &b}, db.PagerNoLimit)
@@ -270,7 +270,7 @@ func (s Service) GetFavorites(ctx context.Context) ([]Folder, error) {
 	return folders, nil
 }
 
-// Manage Favorite Folders
+// ManageFavorites manage favorite virtual folders.
 func (s Service) ManageFavorites(ctx context.Context, folderId int, isInFavorites bool) (bool, error) {
 	if folderId == 0 || folderId == 1 {
 		return false, ErrInvalidInput
@@ -287,7 +287,7 @@ func (s Service) ManageFavorites(ctx context.Context, folderId int, isInFavorite
 	return s.repo.UpdateVfsFolder(ctx, f, db.WithColumns(db.Columns.VfsFolder.IsFavorite))
 }
 
-// Create Folder
+// CreateFolder create virtual folder.
 func (s Service) CreateFolder(ctx context.Context, rootFolderId int, name string) (bool, error) {
 	f, err := s.folderByID(ctx, rootFolderId)
 	if err != nil {
@@ -312,7 +312,7 @@ func (s Service) CreateFolder(ctx context.Context, rootFolderId int, name string
 	return false, nil
 }
 
-// Delete Folder
+// DeleteFolder removes Folder.
 func (s Service) DeleteFolder(ctx context.Context, folderId int) (bool, error) {
 	f, err := s.folderByID(ctx, folderId)
 	if err != nil {
@@ -330,7 +330,7 @@ func (s Service) DeleteFolder(ctx context.Context, folderId int) (bool, error) {
 	return true, nil
 }
 
-// Move Folder
+// MoveFolder move Folder to destination folder.
 func (s Service) MoveFolder(ctx context.Context, folderId, destinationFolderId int) (bool, error) {
 	if folderId == 1 || folderId == 0 || destinationFolderId == 0 || folderId == destinationFolderId {
 		return false, ErrInvalidInput
@@ -373,7 +373,7 @@ func (s Service) MoveFolder(ctx context.Context, folderId, destinationFolderId i
 	return r, nil
 }
 
-// Move Folder
+// RenameFolder change Folder name.
 func (s Service) RenameFolder(ctx context.Context, folderId int, name string) (bool, error) {
 	if folderId == 0 || folderId == 1 || name == "" {
 		return false, ErrInvalidInput
@@ -390,6 +390,7 @@ func (s Service) RenameFolder(ctx context.Context, folderId int, name string) (b
 	return s.repo.UpdateVfsFolder(ctx, f, db.WithColumns(db.Columns.VfsFolder.Title))
 }
 
+// HelpUpload returns a uploader help info.
 func (s Service) HelpUpload() HelpUploadResponse {
 	return HelpUploadResponse{
 		Temp: HelpUploadItem{
@@ -403,16 +404,16 @@ func (s Service) HelpUpload() HelpUploadResponse {
 	}
 }
 
-// Get Url by hash, namespace and media type
+// UrlByHash get Url by hash, namespace and media type
 //
 //zenrpc:hash media hash
 //zenrpc:namespace media namespace
 //zenrpc:mediaType type of media (possible values: small, medium, big, empty string)
-func (s Service) UrlByHash(ctx context.Context, hash, namespace, mediaType string) (string, error) {
+func (s Service) UrlByHash(_ context.Context, hash, namespace, mediaType string) (string, error) {
 	return s.vfs.WebHashPathWithType(namespace, mediaType, NewFileHash(hash, "")), nil
 }
 
-// Get Urls by hash list, with namespace and media type
+// UrlByHashList get Urls by hash list, with namespace and media type
 //
 //zenrpc:hashList media hash list
 //zenrpc:namespace media namespace
@@ -425,4 +426,26 @@ func (s Service) UrlByHashList(ctx context.Context, hashList []string, namespace
 	}
 
 	return resp, nil
+}
+
+// DeleteHash delete file by namespace, hash and extension.
+//
+//zenrpc:namespace media namespace
+//zenrpc:hash media hash
+//zenrpc:ext media extension
+//zenrpc:404 File not found by hash
+func (s Service) DeleteHash(_ context.Context, namespace, hash, ext string) (bool, error) {
+	fileName := s.vfs.FullFile(namespace, NewFileHash(hash, ext))
+	_, err := os.Stat(fileName)
+	if os.IsNotExist(err) {
+		return false, ErrNotFound
+	} else if err != nil {
+		return false, InternalError(err)
+	}
+	err = os.Remove(fileName)
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	return true, nil
 }
