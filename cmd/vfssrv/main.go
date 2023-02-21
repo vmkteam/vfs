@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vmkteam/rpcgen/v2"
+	"github.com/vmkteam/rpcgen/v2/golang"
 	"github.com/vmkteam/zenrpc/v2"
 
 	"github.com/vmkteam/vfs"
@@ -73,6 +74,7 @@ func main() {
 		http.Handle("/rpc", corsMiddleware(authMiddleware(rpc)))
 		http.Handle("/upload/file", corsMiddleware(authMiddleware(v.UploadHandler(*repo))))
 		http.Handle("/rpc/api.ts", corsMiddleware(http.HandlerFunc(rpcgen.Handler(gen.TSClient(nil)))))
+		http.Handle("/rpc/api.go", corsMiddleware(http.HandlerFunc(rpcgen.Handler(gen.GoClient(golang.Settings{Package: "vfssrv"})))))
 	}
 
 	http.HandleFunc("/auth-token", issueTokenHandler)
