@@ -11,9 +11,9 @@ import (
 )
 
 var RPC = struct {
-	Service struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload, UrlByHash, UrlByHashList string }
+	Service struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload, UrlByHash, UrlByHashList, DeleteHash string }
 }{
-	Service: struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload, UrlByHash, UrlByHashList string }{
+	Service: struct{ GetFolder, GetFolderBranch, GetFiles, CountFiles, MoveFiles, DeleteFiles, SetFilePhysicalName, SearchFolderByFileId, SearchFolderByFile, GetFavorites, ManageFavorites, CreateFolder, DeleteFolder, MoveFolder, RenameFolder, HelpUpload, UrlByHash, UrlByHashList, DeleteHash string }{
 		GetFolder:            "getfolder",
 		GetFolderBranch:      "getfolderbranch",
 		GetFiles:             "getfiles",
@@ -32,6 +32,7 @@ var RPC = struct {
 		HelpUpload:           "helpupload",
 		UrlByHash:            "urlbyhash",
 		UrlByHashList:        "urlbyhashlist",
+		DeleteHash:           "deletehash",
 	},
 }
 
@@ -39,7 +40,7 @@ func (Service) SMD() smd.ServiceInfo {
 	return smd.ServiceInfo{
 		Methods: map[string]smd.Service{
 			"GetFolder": {
-				Description: `Get Folder with Sub Folders.`,
+				Description: `GetFolder returns Folder with sub folders.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:     "rootFolderId",
@@ -106,7 +107,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"GetFolderBranch": {
-				Description: `Get Folder Branch`,
+				Description: `GetFolderBranch returns Folder branch.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "folderId",
@@ -149,7 +150,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"GetFiles": {
-				Description: `Get Files`,
+				Description: `GetFiles returns list of files.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "folderId",
@@ -278,7 +279,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"CountFiles": {
-				Description: `Count Files`,
+				Description: `CountFiles returns count of files.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "folderId",
@@ -297,7 +298,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"MoveFiles": {
-				Description: `Move Files`,
+				Description: `MoveFiles move files to destination folder.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:     "fileIds",
@@ -320,7 +321,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"DeleteFiles": {
-				Description: `Delete Files`,
+				Description: `DeleteFiles remove files.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:     "fileIds",
@@ -336,7 +337,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"SetFilePhysicalName": {
-				Description: `Rename File on Server`,
+				Description: `SetFilePhysicalName renames File on server.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "fileId",
@@ -352,7 +353,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"SearchFolderByFileId": {
-				Description: `Search Folder by File Id`,
+				Description: `SearchFolderByFileId return Folder by File id.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "fileId",
@@ -415,7 +416,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"SearchFolderByFile": {
-				Description: `Search Folder by Filename`,
+				Description: `SearchFolderByFile return Folder by File name.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "filename",
@@ -478,7 +479,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"GetFavorites": {
-				Description: `Get Favorites`,
+				Description: `GetFavorites return favorites list.`,
 				Parameters:  []smd.JSONSchema{},
 				Returns: smd.JSONSchema{
 					Type:     smd.Array,
@@ -516,7 +517,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"ManageFavorites": {
-				Description: `Manage Favorite Folders`,
+				Description: `ManageFavorites manage favorite virtual folders.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "folderId",
@@ -532,7 +533,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"CreateFolder": {
-				Description: `Create Folder`,
+				Description: `CreateFolder create virtual folder.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "rootFolderId",
@@ -548,7 +549,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"DeleteFolder": {
-				Description: `Delete Folder`,
+				Description: `DeleteFolder removes Folder.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "folderId",
@@ -560,7 +561,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"MoveFolder": {
-				Description: `Move Folder`,
+				Description: `MoveFolder move Folder to destination folder.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "folderId",
@@ -576,7 +577,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"RenameFolder": {
-				Description: `Move Folder`,
+				Description: `RenameFolder change Folder name.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name: "folderId",
@@ -592,7 +593,8 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"HelpUpload": {
-				Parameters: []smd.JSONSchema{},
+				Description: `HelpUpload returns a uploader help info.`,
+				Parameters:  []smd.JSONSchema{},
 				Returns: smd.JSONSchema{
 					Type:     smd.Object,
 					TypeName: "HelpUploadResponse",
@@ -629,7 +631,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"UrlByHash": {
-				Description: `Get Url by hash, namespace and media type`,
+				Description: `UrlByHash get Url by hash, namespace and media type`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "hash",
@@ -652,7 +654,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"UrlByHashList": {
-				Description: `Get Urls by hash list, with namespace and media type`,
+				Description: `UrlByHashList get Urls by hash list, with namespace and media type`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "hashList",
@@ -695,6 +697,27 @@ func (Service) SMD() smd.ServiceInfo {
 							},
 						},
 					},
+				},
+			},
+			"DeleteHash": {
+				Description: `DeleteHash delete file by namespace and hash.`,
+				Parameters: []smd.JSONSchema{
+					{
+						Name:        "namespace",
+						Description: `media namespace`,
+						Type:        smd.String,
+					},
+					{
+						Name:        "hash",
+						Description: `media hash`,
+						Type:        smd.String,
+					},
+				},
+				Returns: smd.JSONSchema{
+					Type: smd.Boolean,
+				},
+				Errors: map[int]string{
+					404: "File not found by hash",
 				},
 			},
 		},
@@ -1062,6 +1085,26 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 		}
 
 		resp.Set(s.UrlByHashList(ctx, args.HashList, args.Namespace, args.MediaType))
+
+	case RPC.Service.DeleteHash:
+		var args = struct {
+			Namespace string `json:"namespace"`
+			Hash      string `json:"hash"`
+		}{}
+
+		if zenrpc.IsArray(params) {
+			if params, err = zenrpc.ConvertToObject([]string{"namespace", "hash"}, params); err != nil {
+				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
+			}
+		}
+
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &args); err != nil {
+				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
+			}
+		}
+
+		resp.Set(s.DeleteHash(ctx, args.Namespace, args.Hash))
 
 	default:
 		resp = zenrpc.NewResponseError(nil, zenrpc.MethodNotFound, "", nil)

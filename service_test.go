@@ -1,9 +1,15 @@
 package vfs_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -14,9 +20,13 @@ import (
 )
 
 var (
-	dbConn  = flag.String("db.conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
-	service vfs.Service
+	dbConn   = flag.String("db.conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
+	service  vfs.Service
+	testRepo db.VfsRepo
+	testVfs  vfs.VFS
 )
+
+const testNs = "testns"
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -25,9 +35,27 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	err = os.MkdirAll("testdata", os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+
+	v, err := vfs.New(vfs.Config{
+		Path:           "testdata",
+		Extensions:     []string{"png"},
+		MimeTypes:      []string{"image/png"},
+		Namespaces:     []string{testNs},
+		UploadFormName: "Data",
+		MaxFileSize:    32 << 20},
+	)
+	if err != nil {
+		panic(err)
+	}
+	testVfs = v
+
 	dbc := pg.Connect(cfg)
-	repo := db.NewVfsRepo(db.New(dbc))
-	service = vfs.NewService(repo, vfs.VFS{}, dbc)
+	testRepo = db.NewVfsRepo(db.New(dbc))
+	service = vfs.NewService(testRepo, testVfs, dbc)
 	os.Exit(m.Run())
 }
 
@@ -97,5 +125,63 @@ func TestDBService_UrlByHashList(t *testing.T) {
 	d, _ := json.Marshal(resp)
 	if string(d) != `[{"hash":"123456","webPath":"1/23/123456.jpg"},{"hash":"987654","webPath":"9/87/987654.jpg"}]` {
 		t.Fatal(string(d))
+	}
+}
+
+func TestDBService_DeleteHash(t *testing.T) {
+	ctx := context.Background()
+
+	ts := httptest.NewServer(testVfs.HashUploadHandler(&testRepo))
+	defer ts.Close()
+
+	// hash for upload
+	data, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Errorf("failed to decode base64 image: %v", err)
+	}
+
+	body := new(bytes.Buffer)
+	mp := multipart.NewWriter(body)
+
+	err = mp.WriteField("ns", testNs)
+	if err != nil {
+		t.Errorf("failed to create multipart form field: %v", err)
+	}
+	err = mp.WriteField("ext", "png")
+	if err != nil {
+		t.Errorf("failed to create multipart form field: %v", err)
+	}
+	w, err := mp.CreateFormFile("Data", "test.png")
+	if err != nil {
+		t.Errorf("failed to create multipart form file field: %v", err)
+	}
+	_, err = io.Copy(w, bytes.NewReader(data))
+	if err != nil {
+		t.Errorf("failed to fill multipart form file field: %v", err)
+	}
+	mp.Close()
+
+	var uploadResp vfs.UploadResponse
+	res, err := http.Post(ts.URL, mp.FormDataContentType(), body)
+	if err != nil {
+		t.Fatalf("failed to perform hash upload: %v", err)
+	}
+	defer res.Body.Close()
+
+	bb, _ := io.ReadAll(res.Body)
+	err = json.Unmarshal(bb, &uploadResp)
+	if err != nil {
+		t.Fatalf("failed to unmarshal upload response: %v", err)
+	}
+	t.Log(uploadResp)
+
+	_, err = service.DeleteHash(ctx, "", uploadResp.Hash)
+	if err.Error() != "Not Found" {
+		t.Fatalf("deleting not existed hash err=%v", err)
+	}
+
+	_, err = service.DeleteHash(ctx, testNs, uploadResp.Hash)
+	if err != nil {
+		t.Fatalf("deleting existed hash err=%v", err)
 	}
 }
