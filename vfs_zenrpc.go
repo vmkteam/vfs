@@ -700,7 +700,7 @@ func (Service) SMD() smd.ServiceInfo {
 				},
 			},
 			"DeleteHash": {
-				Description: `DeleteHash delete file by namespace, hash and extension.`,
+				Description: `DeleteHash delete file by namespace and hash.`,
 				Parameters: []smd.JSONSchema{
 					{
 						Name:        "namespace",
@@ -710,11 +710,6 @@ func (Service) SMD() smd.ServiceInfo {
 					{
 						Name:        "hash",
 						Description: `media hash`,
-						Type:        smd.String,
-					},
-					{
-						Name:        "ext",
-						Description: `media extension`,
 						Type:        smd.String,
 					},
 				},
@@ -1095,11 +1090,10 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 		var args = struct {
 			Namespace string `json:"namespace"`
 			Hash      string `json:"hash"`
-			Ext       string `json:"ext"`
 		}{}
 
 		if zenrpc.IsArray(params) {
-			if params, err = zenrpc.ConvertToObject([]string{"namespace", "hash", "ext"}, params); err != nil {
+			if params, err = zenrpc.ConvertToObject([]string{"namespace", "hash"}, params); err != nil {
 				return zenrpc.NewResponseError(nil, zenrpc.InvalidParams, "", err.Error())
 			}
 		}
@@ -1110,7 +1104,7 @@ func (s Service) Invoke(ctx context.Context, method string, params json.RawMessa
 			}
 		}
 
-		resp.Set(s.DeleteHash(ctx, args.Namespace, args.Hash, args.Ext))
+		resp.Set(s.DeleteHash(ctx, args.Namespace, args.Hash))
 
 	default:
 		resp = zenrpc.NewResponseError(nil, zenrpc.MethodNotFound, "", nil)

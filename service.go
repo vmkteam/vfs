@@ -428,15 +428,28 @@ func (s Service) UrlByHashList(ctx context.Context, hashList []string, namespace
 	return resp, nil
 }
 
-// DeleteHash delete file by namespace, hash and extension.
+// DeleteHash delete file by namespace and hash.
 //
 //zenrpc:namespace media namespace
 //zenrpc:hash media hash
 //zenrpc:ext media extension
 //zenrpc:404 File not found by hash
-func (s Service) DeleteHash(_ context.Context, namespace, hash, ext string) (bool, error) {
-	fileName := s.vfs.FullFile(namespace, NewFileHash(hash, ext))
-	_, err := os.Stat(fileName)
+func (s Service) DeleteHash(ctx context.Context, namespace, hash string) (bool, error) {
+	vfsHash, err := s.repo.VfsHashByID(ctx, hash, namespace)
+	if err != nil {
+		return false, InternalError(err)
+	}
+	if vfsHash == nil {
+		return false, ErrNotFound
+	}
+
+	_, err = s.repo.DeleteVfsHash(ctx, hash, namespace)
+	if err != nil {
+		return false, InternalError(err)
+	}
+
+	fileName := s.vfs.FullFile(namespace, NewFileHash(vfsHash.Hash, vfsHash.Extension))
+	_, err = os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return false, ErrNotFound
 	} else if err != nil {
