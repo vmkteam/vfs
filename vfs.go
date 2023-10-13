@@ -260,6 +260,10 @@ func (v VFS) IsValidMimeType(mType string) bool {
 	}
 
 	for _, m := range v.cfg.MimeTypes {
+		if m == "*" {
+			return true
+		}
+
 		if m == mType {
 			return true
 		}

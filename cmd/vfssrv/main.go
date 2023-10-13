@@ -30,7 +30,7 @@ var (
 	flWebPath        = fs.String("webpath", "/media/", "web path to files")
 	flPreviewPath    = fs.String("preview-path", "/media/small/", "preview path to image files")
 	flExtensions     = fs.String("ext", "jpg,jpeg,png,gif", "allowed file extensions for hash upload, separated by comma")
-	flMimeTypes      = fs.String("mime", "image/jpeg,image/png,image/gif", "allowed mime types for hash upload, separated by comma")
+	flMimeTypes      = fs.String("mime", "image/jpeg,image/png,image/gif", "allowed mime types for hash upload, separated by comma (use * for any)")
 	flDbConn         = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
 	flJWTKey         = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
 	flJWTHeader      = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
