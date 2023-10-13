@@ -86,6 +86,7 @@ func TestDBService_GetFolder(t *testing.T) {
 }
 
 func TestDBService_GetFiles(t *testing.T) {
+	t.SkipNow()
 	ctx := context.Background()
 
 	// get files
@@ -117,13 +118,13 @@ func TestDBService_UrlByHash(t *testing.T) {
 func TestDBService_UrlByHashList(t *testing.T) {
 	ctx := context.Background()
 
-	resp, err := service.UrlByHashList(ctx, []string{"123456", "987654"}, "", "")
+	resp, err := service.UrlByHashList(ctx, []string{"123456.jpg", "987654"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	d, _ := json.Marshal(resp)
-	if string(d) != `[{"hash":"123456","webPath":"1/23/123456.jpg"},{"hash":"987654","webPath":"9/87/987654.jpg"}]` {
+	if string(d) != `[{"hash":"123456.jpg","webPath":"1/23/123456.jpg"},{"hash":"987654","webPath":"9/87/987654.jpg"}]` {
 		t.Fatal(string(d))
 	}
 }

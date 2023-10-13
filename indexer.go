@@ -306,6 +306,11 @@ func (hi HashIndexer) Preview() http.HandlerFunc {
 			return
 		}
 
+		if hash.Width == 0 || hash.Height == 0 || hash.Blurhash == nil || *hash.Blurhash == "" {
+			http.NotFound(w, r)
+			return
+		}
+
 		if imsTime, err := time.Parse(httpTimeLayout, r.Header.Get("If-Modified-Since")); err == nil {
 			if hash.IndexedAt.Before(imsTime) {
 				w.WriteHeader(http.StatusNotModified)

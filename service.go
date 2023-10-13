@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/vmkteam/vfs/db"
@@ -421,7 +422,12 @@ func (s Service) UrlByHash(_ context.Context, hash, namespace, mediaType string)
 func (s Service) UrlByHashList(ctx context.Context, hashList []string, namespace, mediaType string) ([]UrlByHashListResponse, error) {
 	var resp []UrlByHashListResponse
 	for _, hash := range hashList {
-		url, _ := s.UrlByHash(ctx, hash, namespace, mediaType)
+		// remove extension from hash
+		ext := filepath.Ext(hash)
+		hashNew := strings.TrimSuffix(filepath.Base(hash), ext)
+		ext = strings.TrimPrefix(ext, ".")
+
+		url := s.vfs.WebHashPathWithType(namespace, mediaType, NewFileHash(hashNew, ext))
 		resp = append(resp, UrlByHashListResponse{Hash: hash, WebPath: url})
 	}
 
