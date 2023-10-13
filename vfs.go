@@ -48,7 +48,7 @@ type FileHash struct {
 }
 
 func NewFileHash(hash, ext string) FileHash {
-	if ext == "" {
+	if ext == "" || ext == "jpeg" {
 		ext = DefaultHashExtension
 	}
 	return FileHash{Hash: hash, Ext: ext}
@@ -319,8 +319,10 @@ func (v VFS) uploadFile(r *http.Request, ns, ext, vfsFilename string) UploadResp
 		}(file)
 
 		rd, fileSize = file, handler.Size
-		ext = strings.TrimPrefix(filepath.Ext(handler.Filename), ".")
-		name = strings.TrimSuffix(handler.Filename, filepath.Ext(handler.Filename))
+		if vfsFilename != "" {
+			ext = strings.TrimPrefix(filepath.Ext(handler.Filename), ".")
+			name = strings.TrimSuffix(handler.Filename, filepath.Ext(handler.Filename))
+		}
 	} else {
 		return UploadResponse{Code: http.StatusMethodNotAllowed, Error: "Method not allowed"}
 	}
@@ -350,7 +352,7 @@ func (v VFS) uploadFile(r *http.Request, ns, ext, vfsFilename string) UploadResp
 	}
 
 	// write response
-	return UploadResponse{Code: http.StatusOK, Hash: fh.Hash, WebPath: v.WebHashPath(ns, *fh), Size: fileSize}
+	return UploadResponse{Code: http.StatusOK, Hash: fh.Hash, Extension: fh.Ext, WebPath: v.WebHashPath(ns, *fh), Size: fileSize}
 }
 
 func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
@@ -363,13 +365,9 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 				ns = DefaultNamespace
 			}
 
-			if ext == "" {
-				ext = DefaultHashExtension
-			}
-
 			if err := repo.SaveVfsHash(
 				context.Background(),
-				&db.VfsHash{Hash: ur.Hash, Namespace: ns, Extension: ext, FileSize: int(ur.Size), CreatedAt: time.Now()},
+				&db.VfsHash{Hash: ur.Hash, Namespace: ns, Extension: ur.Extension, FileSize: int(ur.Size), CreatedAt: time.Now()},
 			); err != nil {
 				log.Println("failed to save hash into db err=", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)

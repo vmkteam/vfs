@@ -14,8 +14,14 @@ func ExampleFileHash() {
 	fh := vfs.NewFileHash("6698364ea6730f327a26bb8a6d3da3be", "")
 	fmt.Println(fh.Dir())
 	fmt.Println(fh.File())
+
+	// automatic rewrite jpeg extension to jpg
+	fh2 := vfs.NewFileHash("6698364ea6730f327a26bb8a6d3da3be", "jpeg")
+	fmt.Println(fh2.File())
+
 	// Output:
 	// 6/69
+	// 6/69/6698364ea6730f327a26bb8a6d3da3be.jpg
 	// 6/69/6698364ea6730f327a26bb8a6d3da3be.jpg
 }
 
