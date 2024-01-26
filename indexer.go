@@ -248,6 +248,10 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 			list[i].IndexedAt = &now
 			info, err := hi.IndexFile(ns, NewFileHash(v.Hash, v.Extension).File())
 			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					// skip in case file not found (not downloaded yet)
+					list[i].IndexedAt = nil
+				}
 				list[i].Error = err.Error()
 				continue
 			}
@@ -266,6 +270,7 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 				db.Columns.VfsHash.Width,
 				db.Columns.VfsHash.IndexedAt,
 				db.Columns.VfsHash.Blurhash,
+				db.Columns.VfsHash.Error,
 			).
 			Update()
 		return err
