@@ -37,7 +37,7 @@ var (
 	flFileSize       = fs.Int64("maxsize", 32<<20, "max file size in bytes")
 	flVerboseSQL     = fs.Bool("verbose-sql", false, "log all sql queries")
 	flIndex          = fs.Bool("index", false, "index files on start: width, height, blurhash")
-	flIndexDisableBH = fs.Bool("index-disable-blurhash", false, "do not calculate blurhash")
+	flIndexBlurhash  = fs.Bool("index-blurhash", true, "calculate blurhash (could be long operation on large files)")
 	flIndexWorkers   = fs.Int("index-workers", runtime.NumCPU()/2, "total running indexer workers, default is cores/2")
 	flIndexBatchSize = fs.Uint64("index-batch-size", 64, "indexer batch size for files, default is 64")
 	version          string
@@ -84,7 +84,7 @@ func main() {
 	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, http.FileServer(http.Dir(*flDir))))
 
 	if flIndex != nil && *flIndex {
-		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v, *flIndexWorkers, *flIndexBatchSize, !*flIndexDisableBH)
+		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v, *flIndexWorkers, *flIndexBatchSize, *flIndexBlurhash)
 		http.Handle("/scan-files", http.HandlerFunc(hi.ScanFilesHandler))
 		http.Handle("/preview/", corsMiddleware(hi.Preview()))
 		go hi.Start()
