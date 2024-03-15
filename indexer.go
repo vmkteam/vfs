@@ -42,6 +42,7 @@ type HashIndexer struct {
 	repo         *db.VfsRepo
 	totalWorkers int
 	batchSize    uint64
+	calcBlurHash bool
 
 	cache    *lru.ARCCache
 	t        *time.Ticker
@@ -69,7 +70,7 @@ type cacheEntry struct {
 	mtime time.Time
 }
 
-func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64) *HashIndexer {
+func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64, calculateBlurHash bool) *HashIndexer {
 	cache, _ := lru.NewARC(defaultCacheSize)
 	return &HashIndexer{
 		dbc:          dbc,
@@ -80,6 +81,7 @@ func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batc
 		cache:        cache,
 		totalWorkers: totalWorkers,
 		batchSize:    batchSize,
+		calcBlurHash: calculateBlurHash,
 	}
 }
 
@@ -144,11 +146,14 @@ func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
 		return hash, err
 	}
 
-	bh, err := blurhash.Encode(4, 3, img)
-	if err != nil {
-		return hash, err
+	// calculate blurhash
+	if hi.calcBlurHash {
+		bh, err := blurhash.Encode(4, 3, img)
+		if err != nil {
+			return hash, err
+		}
+		hash.BlurHash = bh
 	}
-	hash.BlurHash = bh
 
 	return hash, err
 }
