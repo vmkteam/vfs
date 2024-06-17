@@ -81,7 +81,7 @@ func main() {
 	http.HandleFunc("/auth-token", issueTokenHandler)
 
 	http.Handle("/upload/hash", corsMiddleware(authMiddleware(v.HashUploadHandler(repo))))
-	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, http.FileServer(http.Dir(*flDir))))
+	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, corsMiddleware(http.FileServer(http.Dir(*flDir)))))
 
 	if flIndex != nil && *flIndex {
 		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v, *flIndexWorkers, *flIndexBatchSize, *flIndexBlurhash)
