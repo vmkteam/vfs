@@ -183,6 +183,8 @@ func authMiddleware(next http.Handler) http.Handler {
 func initRepo() (*db.VfsRepo, *pg.DB) {
 	if flDbConn == nil {
 		return nil, nil
+	} else if *flDbConn == "" {
+		return nil, nil
 	}
 
 	cfg, err := pg.ParseURL(*flDbConn)
