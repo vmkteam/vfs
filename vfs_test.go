@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/vmkteam/vfs"
+
+	"github.com/vmkteam/embedlog"
 )
 
 func ExampleFileHash() {
@@ -31,7 +33,7 @@ func TestVFS_Upload(t *testing.T) {
 		t.Fatalf("failed to create dir: %v", err)
 	}
 
-	v, err := vfs.New(vfs.Config{Path: "testdata", Extensions: []string{"png"}, MimeTypes: []string{"image/png"}})
+	v, err := vfs.New(vfs.Config{Path: "testdata", Extensions: []string{"png"}, MimeTypes: []string{"image/png"}}, embedlog.Logger{})
 	if err != nil {
 		t.Fatalf("failed to create vfs: %v", err)
 	}

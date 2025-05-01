@@ -2,24 +2,26 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"net/http"
+	"log/slog"
 	"os"
+	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
-
-	"github.com/vmkteam/rpcgen/v2"
-	"github.com/vmkteam/rpcgen/v2/golang"
-	"github.com/vmkteam/zenrpc/v2"
 
 	"github.com/vmkteam/vfs"
 	"github.com/vmkteam/vfs/db"
+	"github.com/vmkteam/vfs/internal/app"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/go-pg/pg/v10"
 	"github.com/namsral/flag"
+	"github.com/vmkteam/embedlog"
+)
+
+const (
+	appName = "vfssrv"
 )
 
 var (
@@ -31,194 +33,112 @@ var (
 	flPreviewPath    = fs.String("preview-path", "/media/small/", "preview path to image files")
 	flExtensions     = fs.String("ext", "jpg,jpeg,png,gif", "allowed file extensions for hash upload, separated by comma")
 	flMimeTypes      = fs.String("mime", "image/jpeg,image/png,image/gif", "allowed mime types for hash upload, separated by comma (use * for any)")
-	flDbConn         = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
+	flDBConn         = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
 	flJWTKey         = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
 	flJWTHeader      = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
 	flFileSize       = fs.Int64("maxsize", 32<<20, "max file size in bytes")
-	flVerboseSQL     = fs.Bool("verbose-sql", false, "log all sql queries")
+	flVerbose        = fs.Bool("verbose", false, "enable debug output")
+	flJSONLogs       = fs.Bool("json", false, "enable json output")
+	flDev            = fs.Bool("dev", false, "enable dev mode")
 	flIndex          = fs.Bool("index", false, "index files on start: width, height, blurhash")
 	flIndexBlurhash  = fs.Bool("index-blurhash", true, "calculate blurhash (could be long operation on large files)")
 	flIndexWorkers   = fs.Int("index-workers", runtime.NumCPU()/2, "total running indexer workers, default is cores/2")
 	flIndexBatchSize = fs.Uint64("index-batch-size", 64, "indexer batch size for files, default is 64")
-	version          string
 )
 
 func main() {
 	err := fs.Parse(os.Args[1:])
-	checkErr(err)
+	exitOnError(err)
 
-	v, err := vfs.New(vfs.Config{
-		MaxFileSize:    *flFileSize,
-		Path:           *flDir,
-		WebPath:        *flWebPath,
-		PreviewPath:    *flPreviewPath,
-		UploadFormName: "Filedata",
-		Namespaces:     strings.Split(*flNamespaces, ","),
-		Extensions:     strings.Split(*flExtensions, ","),
-		MimeTypes:      strings.Split(*flMimeTypes, ","),
-		Database:       nil,
-	})
-	checkErr(err)
+	// setup logger
+	sl, ctx := embedlog.NewLogger(*flVerbose, *flJSONLogs), context.Background()
+	if *flDev {
+		sl = embedlog.NewDevLogger()
+	}
+	slog.SetDefault(sl.Log()) // set default logger
 
-	log.Printf("starting vfssrv version=%v on %s jwt.header=%v", version, *flAddr, *flJWTHeader)
-
-	// use rpc only when dbconn is set
-	repo, dbc := initRepo()
-	if repo != nil {
-		rpc := zenrpc.NewServer(zenrpc.Options{ExposeSMD: true, AllowCORS: true})
-		rpc.Use(zenrpc.Logger(log.New(os.Stdout, "", log.LstdFlags)))
-		rpc.Register("", vfs.NewService(*repo, v, dbc))
-		rpc.Register("vfs", vfs.NewService(*repo, v, dbc))
-
-		gen := rpcgen.FromSMD(rpc.SMD())
-
-		http.Handle("/rpc", corsMiddleware(authMiddleware(rpc)))
-		http.Handle("/upload/file", corsMiddleware(authMiddleware(v.UploadHandler(*repo))))
-		http.Handle("/rpc/api.ts", corsMiddleware(http.HandlerFunc(rpcgen.Handler(gen.TSClient(nil)))))
-		http.Handle("/rpc/api.go", corsMiddleware(http.HandlerFunc(rpcgen.Handler(gen.GoClient(golang.Settings{Package: "vfssrv"})))))
+	// init config
+	cfg := app.Config{
+		Server: app.ServerConfig{
+			Addr:           *flAddr,
+			IsDevel:        *flVerbose,
+			JWTHeader:      *flJWTHeader,
+			JWTKey:         *flJWTKey,
+			Index:          *flIndex,
+			IndexBlurhash:  *flIndexBlurhash,
+			IndexWorkers:   *flIndexWorkers,
+			IndexBatchSize: *flIndexBatchSize,
+		},
+		VFS: vfs.Config{
+			MaxFileSize:    *flFileSize,
+			Path:           *flDir,
+			WebPath:        *flWebPath,
+			PreviewPath:    *flPreviewPath,
+			UploadFormName: "Filedata",
+			Namespaces:     strings.Split(*flNamespaces, ","),
+			Extensions:     strings.Split(*flExtensions, ","),
+			MimeTypes:      strings.Split(*flMimeTypes, ","),
+			Database:       nil,
+		},
 	}
 
-	http.HandleFunc("/auth-token", issueTokenHandler)
+	// connect to DB
+	var dbc *pg.DB
+	if flDBConn != nil && *flDBConn != "" {
+		cfg.Database, err = pg.ParseURL(*flDBConn)
+		exitOnError(err)
 
-	http.Handle("/upload/hash", corsMiddleware(authMiddleware(v.HashUploadHandler(repo))))
-	http.Handle(*flWebPath, http.StripPrefix(*flWebPath, http.FileServer(http.Dir(*flDir))))
-
-	if flIndex != nil && *flIndex {
-		hi := vfs.NewHashIndexer(db.DB{DB: dbc}, repo, v, *flIndexWorkers, *flIndexBatchSize, *flIndexBlurhash)
-		http.Handle("/scan-files", http.HandlerFunc(hi.ScanFilesHandler))
-		http.Handle("/preview/", corsMiddleware(hi.Preview()))
-		go hi.Start()
-		defer hi.Stop()
+		dbc = pg.Connect(cfg.Database)
+		exitOnError(dbc.Ping(ctx))
+		if *flDev {
+			dbc.AddQueryHook(db.NewQueryLogger(sl))
+		}
 	}
 
-	checkErr(http.ListenAndServe(*flAddr, nil))
+	// create app
+	a, err := app.New(appName, sl, cfg, dbc)
+	exitOnError(err)
+
+	sl.Print(ctx, "starting", "app", appName, "version", appVersion(), "addr", cfg.Server.Addr, "jwtHeader", cfg.Server.JWTHeader)
+	sl.Print(ctx, "app features", "rpc", dbc != nil, "indexer", cfg.Server.Index, "indexBlurhash", cfg.Server.Index && cfg.Server.IndexBlurhash)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	// run app
+	go func() {
+		if err := a.Run(ctx); err != nil {
+			a.Print(ctx, "shutting down http server", "err", err)
+		}
+	}()
+	<-quit
+	a.Shutdown(5 * time.Second)
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		allowHeaders := "Authorization, Authorization2, Origin, X-Requested-With, Content-Type, Accept, Platform, Version"
-		if *flJWTHeader != "" {
-			allowHeaders += ", " + *flJWTHeader
-		}
-		w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
-		if r.Method == "OPTIONS" {
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// issueTokenHandler issues new jwt token for 1 hour. Subject can be set by id GET/POST param
-func issueTokenHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.FormValue("id")
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		ExpiresAt: time.Now().Add(time.Hour).Unix(),
-		IssuedAt:  time.Now().Unix(),
-		Issuer:    "vfs",
-		Subject:   id,
-	})
-
-	key := []byte(*flJWTKey)
-	tokenString, err := token.SignedString(key)
+func exitOnError(err error) {
 	if err != nil {
-		log.Println(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	} else {
-		fmt.Fprint(w, tokenString)
-		fmt.Printf("issued new token=%v for id=%v", tokenString, id)
+		//nolint:sloglint
+		slog.Error("fatal error", "err", err)
+		os.Exit(1)
 	}
 }
 
-// authMiddleware checks JWT token if set in flag jwt.header.
-func authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var (
-			isOK    = true
-			errMsg  = ""
-			errCode = http.StatusUnauthorized
-		)
+// appVersion returns app version from VCS info.
+func appVersion() string {
+	result := "devel"
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return result
+	}
 
-		defer func() {
-			if isOK {
-				next.ServeHTTP(w, r)
-			} else {
-				http.Error(w, errMsg, errCode)
-			}
-		}()
-
-		if *flJWTHeader != "" {
-			isOK = false
-			tokenString := r.Header.Get(*flJWTHeader)
-			token, err := jwt.ParseWithClaims(tokenString, &jwt.StandardClaims{}, func(token *jwt.Token) (interface{}, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
-				return []byte(*flJWTKey), nil
-			})
-
-			if token == nil {
-				errMsg = "missing token"
-				return
-			} else if err != nil {
-				errMsg = err.Error()
-			}
-
-			// validate token
-			if claims, ok := token.Claims.(*jwt.StandardClaims); ok && token.Valid {
-				if err = claims.Valid(); err != nil {
-					errMsg, errCode = err.Error(), http.StatusForbidden
-				} else {
-					isOK = true
-				}
-			} else {
-				errMsg = "bad token"
-			}
+	for _, v := range info.Settings {
+		if v.Key == "vcs.revision" {
+			result = v.Value
 		}
-	})
-}
-
-// initRepo connects to postgres and inits vfs db repo.
-func initRepo() (*db.VfsRepo, *pg.DB) {
-	if flDbConn == nil {
-		return nil, nil
-	} else if *flDbConn == "" {
-		return nil, nil
 	}
 
-	cfg, err := pg.ParseURL(*flDbConn)
-	checkErr(err)
-
-	dbc := pg.Connect(cfg)
-	d := db.New(dbc)
-	v, err := d.Version()
-	checkErr(err)
-
-	log.Println(v)
-	repo := db.NewVfsRepo(d)
-
-	if *flVerboseSQL {
-		dbc.AddQueryHook(dbLogger{})
+	if len(result) > 8 {
+		result = result[:8]
 	}
 
-	return &repo, dbc
-}
-
-func checkErr(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-type dbLogger struct{}
-
-func (d dbLogger) BeforeQuery(ctx context.Context, q *pg.QueryEvent) (context.Context, error) {
-	return ctx, nil
-}
-
-func (d dbLogger) AfterQuery(_ context.Context, q *pg.QueryEvent) error {
-	qs, err := q.FormattedQuery()
-	log.Println(string(qs), err)
-	return nil
+	return result
 }

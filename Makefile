@@ -4,14 +4,11 @@ MAIN := cmd/vfssrv/main.go
 
 PKG := `go list -f {{.Dir}} ./...`
 
-LINT_VERSION := v1.50.1
+LINT_VERSION := v2.1.5
 
 ifeq ($(RACE),1)
 	GOFLAGS=-race
 endif
-
-VERSION?=$(shell git version > /dev/null 2>&1 && git describe --dirty=-dirty --always 2>/dev/null || echo NO_VERSION)
-LDFLAGS=-ldflags "-X=main.version=$(VERSION)"
 
 tools:
 	@go install github.com/vmkteam/mfd-generator@latest
@@ -19,17 +16,19 @@ tools:
 	@curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${LINT_VERSION}
 
 fmt:
-	@goimports -local ${LOCAL_PKG} -l -w $(PKG)
+	@golangci-lint fmt
 
 lint:
-	@golangci-lint run -c .golangci.yml
+	@golangci-lint version
+	@golangci-lint config verify
+	@golangci-lint run
 
 build:
 	@CGO_ENABLED=0 go build $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
 
 run:
 	@echo "Compiling"
-	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN)
+	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN) -dev -jwt-header=""  $(fl)
 
 test:
 	@go test $(LDFLAGS) $(GOFLAGS) ./...
@@ -42,6 +41,7 @@ generate:
 
 mod:
 	@go mod tidy
+	@go mod vendor
 
 mfd-xml:
 	@mfd-generator xml -c "postgres://postgres:postgres@localhost:5432/vfs?sslmode=disable" -m ./docs/model/vfs.mfd -n "vfs:vfsFiles,vfsFolders,vfsHashes"

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/go-pg/pg/v10"
+	"github.com/vmkteam/embedlog"
 )
 
 const (
@@ -77,10 +78,11 @@ type Config struct {
 }
 
 type VFS struct {
+	embedlog.Logger
 	cfg Config
 }
 
-func New(cfg Config) (VFS, error) {
+func New(cfg Config, sl embedlog.Logger) (VFS, error) {
 	if !cfg.SkipFolderVerify {
 		if _, err := os.Stat(cfg.Path); os.IsNotExist(err) {
 			return VFS{}, err
@@ -91,7 +93,7 @@ func New(cfg Config) (VFS, error) {
 		cfg.UploadFormName = "file"
 	}
 
-	return VFS{cfg: cfg}, nil
+	return VFS{cfg: cfg, Logger: sl}, nil
 }
 
 func (v VFS) Upload(r io.Reader, relFilename, ns string) error {
@@ -161,7 +163,7 @@ func (v VFS) HashUpload(r io.Reader, ns, ext string) (*FileHash, error) {
 	// calculate hash
 	hash := md5.New()
 	wr := io.MultiWriter(hash, tf)
-	if _, err := io.Copy(wr, r); err != nil {
+	if _, err = io.Copy(wr, r); err != nil {
 		return nil, err
 	}
 
@@ -302,14 +304,15 @@ func (v VFS) uploadFile(r *http.Request, ns, ext, vfsFilename string) UploadResp
 	)
 
 	// detect PUT or POST usage
-	if r.Method == http.MethodPut {
+	switch r.Method {
+	case http.MethodPut:
 		rd, fileSize = r.Body, r.ContentLength
 		if r.Body != nil {
 			defer func(b io.ReadCloser) {
 				_ = b.Close()
 			}(r.Body)
 		}
-	} else if r.Method == http.MethodPost {
+	case http.MethodPost:
 		if err := r.ParseMultipartForm(v.cfg.MaxFileSize); err != nil {
 			return UploadResponse{Code: http.StatusInternalServerError, Error: err.Error()}
 		}
@@ -327,7 +330,7 @@ func (v VFS) uploadFile(r *http.Request, ns, ext, vfsFilename string) UploadResp
 			ext = strings.TrimPrefix(filepath.Ext(handler.Filename), ".")
 			name = strings.TrimSuffix(handler.Filename, filepath.Ext(handler.Filename))
 		}
-	} else {
+	default:
 		return UploadResponse{Code: http.StatusMethodNotAllowed, Error: "Method not allowed"}
 	}
 
@@ -373,7 +376,7 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 				context.Background(),
 				&db.VfsHash{Hash: ur.Hash, Namespace: ns, Extension: ur.Extension, FileSize: int(ur.Size), CreatedAt: time.Now()},
 			); err != nil {
-				log.Println("failed to save hash into db err=", err)
+				v.Error(r.Context(), "hash saved failed", "err", err, "hash", ur.Hash)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -388,13 +391,13 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ns, ext := r.FormValue("ns"), strings.ToLower(r.FormValue("ext"))
-		folderId, err := strconv.Atoi(r.FormValue("folderId"))
+		folderID, err := strconv.Atoi(r.FormValue("folderID"))
 		if err != nil {
 			http.Error(w, "bad folder "+err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		fl, err := repo.VfsFolderByID(context.Background(), folderId)
+		fl, err := repo.VfsFolderByID(context.Background(), folderID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -431,7 +434,7 @@ func (v VFS) createFile(repo db.VfsRepo, folder *db.VfsFolder, ns, relFilename, 
 		fs     = 0
 	)
 	if reader, err := os.Open(v.Path(ns, relFilename)); err == nil {
-		//check for image
+		// check for image
 		im, _, err := image.DecodeConfig(reader)
 		if err == nil {
 			params = &db.VfsFileParams{Height: im.Height, Width: im.Width}

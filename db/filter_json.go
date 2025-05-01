@@ -15,21 +15,21 @@ type jsonField struct {
 	LastElement string
 }
 
-// prepareJson prepares SQL where-condition for json field filtering
-func (f Filter) prepareJson(st string) (field, value types.ValueAppender) {
-	jsonField := f.jsonField(f.Field)
+// prepareJSON prepares SQL where-condition for json field filtering
+func (f Filter) prepareJSON(st string) (field, value types.ValueAppender) {
+	jf := f.jsonField(f.Field)
 	switch f.SearchType {
 	case SearchTypeArrayContains:
 		if f.Exclude {
-			jsonField.DBName = "not " + jsonField.DBName
+			jf.DBName = "not " + jf.DBName
 		}
-		st = fmt.Sprintf(`@> '{"%s": [%v]}'`, jsonField.LastElement, f.jsonArrayValue(f.Value))
-		return pg.Safe(jsonField.DBName), pg.Safe(st)
+		st = fmt.Sprintf(`@> '{"%s": [%v]}'`, jf.LastElement, f.jsonArrayValue(f.Value))
+		return pg.Safe(jf.DBName), pg.Safe(st)
 	case SearchTypeEquals, SearchTypeArray:
 		st = searchTypes[f.Exclude][SearchTypeArray]
 		f.Value = pg.In(f.jsonValue(f.Value))
 	}
-	return pg.Safe(jsonField.FullPath), pg.SafeQuery(st, f.Value)
+	return pg.Safe(jf.FullPath), pg.SafeQuery(st, f.Value)
 }
 
 // jsonField prepares json/jsonb field name for postgresql json filters

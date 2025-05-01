@@ -2,7 +2,6 @@ package vfs_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -17,6 +16,7 @@ import (
 	"github.com/vmkteam/vfs/db"
 
 	"github.com/go-pg/pg/v10"
+	"github.com/vmkteam/embedlog"
 )
 
 var (
@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 		MimeTypes:      []string{"image/png"},
 		Namespaces:     []string{testNs},
 		UploadFormName: "Data",
-		MaxFileSize:    32 << 20},
+		MaxFileSize:    32 << 20}, embedlog.Logger{},
 	)
 	if err != nil {
 		panic(err)
@@ -60,7 +60,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestDBService_GetFolder(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// get folder
 	folders, err := service.GetFolder(ctx, 1)
@@ -87,7 +87,7 @@ func TestDBService_GetFolder(t *testing.T) {
 
 func TestDBService_GetFiles(t *testing.T) {
 	t.SkipNow()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// get files
 	q := "photo"
@@ -103,7 +103,7 @@ func TestDBService_GetFiles(t *testing.T) {
 }
 
 func TestDBService_UrlByHash(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	url, err := service.UrlByHash(ctx, "123456", "", "")
 	if err != nil {
@@ -116,7 +116,7 @@ func TestDBService_UrlByHash(t *testing.T) {
 }
 
 func TestDBService_UrlByHashList(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	resp, err := service.UrlByHashList(ctx, []string{"123456.jpg", "987654"}, "", "")
 	if err != nil {
@@ -130,7 +130,7 @@ func TestDBService_UrlByHashList(t *testing.T) {
 }
 
 func TestDBService_DeleteHash(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ts := httptest.NewServer(testVfs.HashUploadHandler(&testRepo))
 	defer ts.Close()
