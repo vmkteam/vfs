@@ -28,7 +28,7 @@ build:
 
 run:
 	@echo "Compiling"
-	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN) -dev -jwt-header=""  $(fl)
+	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN) -dev $(fl)
 
 test:
 	@go test $(LDFLAGS) $(GOFLAGS) ./...

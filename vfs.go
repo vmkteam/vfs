@@ -373,7 +373,7 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 			}
 
 			if err := repo.SaveVfsHash(
-				context.Background(),
+				r.Context(),
 				&db.VfsHash{Hash: ur.Hash, Namespace: ns, Extension: ur.Extension, FileSize: int(ur.Size), CreatedAt: time.Now()},
 			); err != nil {
 				v.Error(r.Context(), "hash saved failed", "err", err, "hash", ur.Hash)
@@ -397,7 +397,7 @@ func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 			return
 		}
 
-		fl, err := repo.VfsFolderByID(context.Background(), folderID)
+		fl, err := repo.VfsFolderByID(r.Context(), folderID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -412,7 +412,7 @@ func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 		// upload file
 		ur := v.uploadFile(r, ns, ext, tempFile)
 		if ur.Code == http.StatusOK {
-			id, err := v.createFile(repo, fl, ns, tempFile, ur.Name, ur.Extension)
+			id, err := v.createFile(r.Context(), repo, fl, ns, tempFile, ur.Name, ur.Extension)
 			if err != nil {
 				ur.Error = err.Error()
 				ur.Code = http.StatusInternalServerError
@@ -427,7 +427,7 @@ func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 	}
 }
 
-func (v VFS) createFile(repo db.VfsRepo, folder *db.VfsFolder, ns, relFilename, name, ext string) (int, error) {
+func (v VFS) createFile(ctx context.Context, repo db.VfsRepo, folder *db.VfsFolder, ns, relFilename, name, ext string) (int, error) {
 	var (
 		params *db.VfsFileParams
 		mType  string
@@ -489,7 +489,7 @@ func (v VFS) createFile(repo db.VfsRepo, folder *db.VfsFolder, ns, relFilename, 
 		CreatedAt:  time.Now(),
 	}
 
-	vf, err := repo.AddVfsFile(context.Background(), &vfsFile)
+	vf, err := repo.AddVfsFile(ctx, &vfsFile)
 	if err != nil {
 		return 0, err
 	}
