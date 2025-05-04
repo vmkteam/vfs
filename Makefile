@@ -1,6 +1,5 @@
-NAME := vfs
 LOCAL_PKG := github.com/vmkteam/vfs
-MAIN := cmd/vfssrv/main.go
+MAIN := $(LOCAL_PKG)/cmd/vfssrv
 
 PKG := `go list -f {{.Dir}} ./...`
 
@@ -24,17 +23,17 @@ lint:
 	@golangci-lint run
 
 build:
-	@CGO_ENABLED=0 go build $(LDFLAGS) $(GOFLAGS) -o vfssrv $(MAIN)
+	@CGO_ENABLED=0 go build $(GOFLAGS) -o vfssrv $(MAIN)
 
 run:
 	@echo "Compiling"
-	@go run $(LDFLAGS) $(GOFLAGS) $(MAIN) -dev $(fl)
+	@go run $(GOFLAGS) $(MAIN) -dev $(fl)
 
 test:
-	@go test $(LDFLAGS) $(GOFLAGS) ./...
+	@go test $(GOFLAGS) ./...
 
 test-short:
-	@go test $(LDFLAGS) $(GOFLAGS) -test.short -test.run="Test[^D][^B]" ./...
+	@go test $(GOFLAGS) -test.short -test.run="Test[^D][^B]" ./...
 
 generate:
 	@go generate
