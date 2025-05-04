@@ -64,13 +64,24 @@ func (h FileHash) File() string {
 }
 
 type Config struct {
-	MaxFileSize      int64
-	Path             string
-	WebPath          string
-	PreviewPath      string
-	Database         *pg.Options
-	Namespaces       []string
-	Extensions       []string
+	// MaxFileSize is max file size in bytes.
+	MaxFileSize int64
+
+	// Path is storage path on fs.
+	Path string
+
+	// WebPath is web path to files.
+	WebPath string
+
+	// PreviewPath is preview path to image files.
+	PreviewPath string
+	Database    *pg.Options
+	Namespaces  []string
+
+	// Extensions is allowed file extensions for hash upload.
+	Extensions []string
+
+	// MimeTypes allowed mime types for hash upload, separated by comma (use * for any)
 	MimeTypes        []string
 	UploadFormName   string
 	SaltedFilenames  bool

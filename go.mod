@@ -3,6 +3,7 @@ module github.com/vmkteam/vfs
 go 1.24.1
 
 require (
+	github.com/BurntSushi/toml v0.3.1
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/go-pg/pg/v10 v10.14.0

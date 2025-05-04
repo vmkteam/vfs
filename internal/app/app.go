@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -20,13 +21,22 @@ import (
 )
 
 type ServerConfig struct {
-	Addr           string
-	IsDevel        bool
-	JWTHeader      string
-	JWTKey         string
-	Index          bool
-	IndexBlurhash  bool
-	IndexWorkers   int
+	Host      string
+	Port      int
+	IsDevel   bool
+	JWTHeader string
+	JWTKey    string
+
+	// Index indexes files on start: width, height, blurhash.
+	Index bool
+
+	// IndexBlurhash calculates blurhash (could be long operation on large files)
+	IndexBlurhash bool
+
+	// IndexWorkers is total running indexer workers, default is cores
+	IndexWorkers int
+
+	// IndexBatchSize is Indexer batch size for files, default is 64
 	IndexBatchSize uint64
 }
 
@@ -92,7 +102,7 @@ func (a *App) Run(ctx context.Context) error {
 		a.registerAPIHandlers()
 	}
 
-	return a.runHTTPServer(ctx, a.cfg.Server.Addr)
+	return a.runHTTPServer(ctx, a.cfg.Server.Host, a.cfg.Server.Port)
 }
 
 func (a *App) registerAPIHandlers() {
@@ -149,17 +159,21 @@ func (a *App) registerHandlers() {
 }
 
 // runHTTPServer is a function that starts http listener using labstack/echo.
-func (a *App) runHTTPServer(ctx context.Context, addr string) error {
-	a.Print(ctx, "starting http listener", "url", "http://"+addr)
+func (a *App) runHTTPServer(ctx context.Context, host string, port int) error {
+	listenAddress := fmt.Sprintf("%s:%d", host, port)
+	a.Print(ctx, "starting http listener", "url", "http://"+listenAddress)
 
-	return a.echo.Start(addr)
+	return a.echo.Start(listenAddress)
 }
 
 // Shutdown is a function that gracefully stops HTTP server.
 func (a *App) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	a.mon.Close()
+
+	if a.mon != nil {
+		a.mon.Close()
+	}
 
 	if err := a.echo.Shutdown(ctx); err != nil {
 		a.Error(ctx, "shutting down server", "err", err)

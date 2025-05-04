@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/vmkteam/vfs/db"
 	"github.com/vmkteam/vfs/internal/app"
 
+	"github.com/BurntSushi/toml"
 	"github.com/go-pg/pg/v10"
 	"github.com/namsral/flag"
 	"github.com/vmkteam/embedlog"
@@ -25,28 +27,17 @@ const (
 )
 
 var (
-	fs               = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
-	flAddr           = fs.String("addr", "0.0.0.0:9999", "listen address")
-	flDir            = fs.String("dir", "testdata", "storage path")
-	flNamespaces     = fs.String("ns", "items,test", "namespaces, separated by comma")
-	flWebPath        = fs.String("webpath", "/media/", "web path to files")
-	flPreviewPath    = fs.String("preview-path", "/media/small/", "preview path to image files")
-	flExtensions     = fs.String("ext", "jpg,jpeg,png,gif", "allowed file extensions for hash upload, separated by comma")
-	flMimeTypes      = fs.String("mime", "image/jpeg,image/png,image/gif", "allowed mime types for hash upload, separated by comma (use * for any)")
-	flDBConn         = fs.String("conn", "postgresql://localhost:5432/vfs?sslmode=disable", "database connection dsn")
-	flJWTKey         = fs.String("jwt-key", "QuiuNae9OhzoKohcee0h", "JWT key")
-	flJWTHeader      = fs.String("jwt-header", "AuthorizationJWT", "JWT header")
-	flFileSize       = fs.Int64("maxsize", 32<<20, "max file size in bytes")
-	flVerbose        = fs.Bool("verbose", false, "enable debug output")
-	flJSONLogs       = fs.Bool("json", false, "enable json output")
-	flDev            = fs.Bool("dev", false, "enable dev mode")
-	flIndex          = fs.Bool("index", false, "index files on start: width, height, blurhash")
-	flIndexBlurhash  = fs.Bool("index-blurhash", true, "calculate blurhash (could be long operation on large files)")
-	flIndexWorkers   = fs.Int("index-workers", runtime.NumCPU()/2, "total running indexer workers, default is cores/2")
-	flIndexBatchSize = fs.Uint64("index-batch-size", 64, "indexer batch size for files, default is 64")
+	fs           = flag.NewFlagSetWithEnvPrefix(os.Args[0], "VFS", 0)
+	flConfigPath = fs.String("config", "config.toml", "path to config file")
+	flInitConfig = fs.Bool("init", false, "write default config file")
+	flVerbose    = fs.Bool("verbose", false, "enable debug output")
+	flJSONLogs   = fs.Bool("json", false, "enable json output")
+	flDev        = fs.Bool("dev", false, "enable dev mode")
+	cfg          app.Config
 )
 
 func main() {
+	flag.DefaultConfigFlagname = "config.flag"
 	err := fs.Parse(os.Args[1:])
 	exitOnError(err)
 
@@ -57,37 +48,19 @@ func main() {
 	}
 	slog.SetDefault(sl.Log()) // set default logger
 
-	// init config
-	cfg := app.Config{
-		Server: app.ServerConfig{
-			Addr:           *flAddr,
-			IsDevel:        *flVerbose,
-			JWTHeader:      *flJWTHeader,
-			JWTKey:         *flJWTKey,
-			Index:          *flIndex,
-			IndexBlurhash:  *flIndexBlurhash,
-			IndexWorkers:   *flIndexWorkers,
-			IndexBatchSize: *flIndexBatchSize,
-		},
-		VFS: vfs.Config{
-			MaxFileSize:    *flFileSize,
-			Path:           *flDir,
-			WebPath:        *flWebPath,
-			PreviewPath:    *flPreviewPath,
-			UploadFormName: "Filedata",
-			Namespaces:     strings.Split(*flNamespaces, ","),
-			Extensions:     strings.Split(*flExtensions, ","),
-			MimeTypes:      strings.Split(*flMimeTypes, ","),
-			Database:       nil,
-		},
+	// check for default config
+	if *flInitConfig && *flConfigPath != "" {
+		exitOnError(writeConfig(*flConfigPath))
+		sl.Print(ctx, "config file successfully written", "file", *flConfigPath)
+		return
 	}
+
+	_, err = toml.DecodeFile(*flConfigPath, &cfg)
+	exitOnError(err)
 
 	// connect to DB
 	var dbc *pg.DB
-	if flDBConn != nil && *flDBConn != "" {
-		cfg.Database, err = pg.ParseURL(*flDBConn)
-		exitOnError(err)
-
+	if cfg.Database != nil {
 		dbc = pg.Connect(cfg.Database)
 		exitOnError(dbc.Ping(ctx))
 		if *flDev {
@@ -99,7 +72,7 @@ func main() {
 	a, err := app.New(appName, sl, cfg, dbc)
 	exitOnError(err)
 
-	sl.Print(ctx, "starting", "app", appName, "version", appVersion(), "addr", cfg.Server.Addr, "jwtHeader", cfg.Server.JWTHeader)
+	sl.Print(ctx, "starting", "app", appName, "version", appVersion(), "host", cfg.Server.Host, "port", cfg.Server.Port, "jwtHeader", cfg.Server.JWTHeader)
 	sl.Print(ctx, "app features", "rpc", dbc != nil, "indexer", cfg.Server.Index, "indexBlurhash", cfg.Server.Index && cfg.Server.IndexBlurhash)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -141,4 +114,57 @@ func appVersion() string {
 	}
 
 	return result
+}
+
+// writeConfig writes default config file to `-config` path.
+func writeConfig(configPath string) error {
+	var defaultConfig = app.Config{
+		Server: app.ServerConfig{
+			Host:           "0.0.0.0",
+			Port:           9999,
+			IsDevel:        false,
+			JWTHeader:      "AuthorizationJWT",
+			JWTKey:         "QuiuNae9OhzoKohcee0h",
+			Index:          false,
+			IndexBlurhash:  true,
+			IndexWorkers:   runtime.NumCPU() / 2,
+			IndexBatchSize: 64,
+		},
+		Database: nil,
+		VFS: vfs.Config{
+			MaxFileSize:      32 << 20,
+			Path:             "testdata",
+			WebPath:          "/media/",
+			PreviewPath:      "/media/small/",
+			Database:         nil,
+			Namespaces:       []string{"items", "test"},
+			Extensions:       []string{"jpg", "jpeg", "png", "gif"},
+			MimeTypes:        []string{"image/jpeg", "image/png", "image/gif"},
+			UploadFormName:   "Filedata",
+			SaltedFilenames:  false,
+			SkipFolderVerify: false,
+		},
+	}
+
+	var buf bytes.Buffer
+	enc := toml.NewEncoder(&buf)
+	if err := enc.Encode(defaultConfig); err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+
+	// write default DB config
+	buf.WriteString(`
+[Database]
+  Addr     = "localhost:5432"
+  User     = "postgres"
+  Password = ""
+  Database = "apisrv"
+  PoolSize = 10
+  ApplicationName = "vfssrv"`)
+
+	if err := os.WriteFile(configPath, buf.Bytes(), os.ModePerm); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", configPath, err)
+	}
+
+	return nil
 }
