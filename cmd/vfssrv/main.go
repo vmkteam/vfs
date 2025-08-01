@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
@@ -124,7 +125,7 @@ func writeConfig(configPath string) error {
 			Port:           9999,
 			IsDevel:        false,
 			JWTHeader:      "AuthorizationJWT",
-			JWTKey:         "QuiuNae9OhzoKohcee0h",
+			JWTKey:         randomString(16),
 			Index:          false,
 			IndexBlurhash:  true,
 			IndexWorkers:   runtime.NumCPU() / 2,
@@ -167,4 +168,13 @@ func writeConfig(configPath string) error {
 	}
 
 	return nil
+}
+
+func randomString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	s := make([]rune, n)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(s)
 }
