@@ -21,12 +21,11 @@ type DB struct {
 // New is a function that returns DB as wrapper on postgres connection.
 func New(db *pg.DB) DB {
 	d := DB{DB: db, crcTable: crc64.MakeTable(crc64.ECMA)}
-
 	return d
 }
 
 // Version is a function that returns Postgres version.
-func (db *DB) Version() (string, error) {
+func (db DB) Version() (string, error) {
 	var v string
 	if _, err := db.QueryOne(pg.Scan(&v), "select version()"); err != nil {
 		return "", err
@@ -36,7 +35,7 @@ func (db *DB) Version() (string, error) {
 }
 
 // runInTransaction runs chain of functions in transaction until first error
-func (db *DB) runInTransaction(ctx context.Context, fns ...func(*pg.Tx) error) error {
+func (db DB) runInTransaction(ctx context.Context, fns ...func(*pg.Tx) error) error {
 	return db.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		for _, fn := range fns {
 			if err := fn(tx); err != nil {
@@ -48,7 +47,7 @@ func (db *DB) runInTransaction(ctx context.Context, fns ...func(*pg.Tx) error) e
 }
 
 // RunInLock runs chain of functions in transaction with lock until first error
-func (db *DB) RunInLock(ctx context.Context, lockName string, fns ...func(*pg.Tx) error) error {
+func (db DB) RunInLock(ctx context.Context, lockName string, fns ...func(*pg.Tx) error) error {
 	lock := int64(crc64.Checksum([]byte(lockName), db.crcTable))
 
 	return db.RunInTransaction(ctx, func(tx *pg.Tx) (err error) {

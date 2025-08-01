@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 
 	"github.com/go-pg/pg/v10"
 	"github.com/go-pg/pg/v10/orm"
@@ -76,10 +77,9 @@ func (vr VfsRepo) OneVfsFile(ctx context.Context, search *VfsFileSearch, ops ...
 	obj := &VfsFile{}
 	err := buildQuery(ctx, vr.db, obj, search, vr.filters[Tables.VfsFile.Name], PagerTwo, ops...).Select()
 
-	switch err {
-	case pg.ErrMultiRows:
+	if errors.Is(err, pg.ErrMultiRows) {
 		return nil, err
-	case pg.ErrNoRows:
+	} else if errors.Is(err, pg.ErrNoRows) {
 		return nil, nil
 	}
 
@@ -100,6 +100,9 @@ func (vr VfsRepo) CountVfsFiles(ctx context.Context, search *VfsFileSearch, ops 
 // AddVfsFile adds VfsFile to DB.
 func (vr VfsRepo) AddVfsFile(ctx context.Context, vfsFile *VfsFile, ops ...OpFunc) (*VfsFile, error) {
 	q := vr.db.ModelContext(ctx, vfsFile)
+	if len(ops) == 0 {
+		q = q.ExcludeColumn(Columns.VfsFile.CreatedAt)
+	}
 	applyOps(q, ops...)
 	_, err := q.Insert()
 
@@ -109,6 +112,9 @@ func (vr VfsRepo) AddVfsFile(ctx context.Context, vfsFile *VfsFile, ops ...OpFun
 // UpdateVfsFile updates VfsFile in DB.
 func (vr VfsRepo) UpdateVfsFile(ctx context.Context, vfsFile *VfsFile, ops ...OpFunc) (bool, error) {
 	q := vr.db.ModelContext(ctx, vfsFile).WherePK()
+	if len(ops) == 0 {
+		q = q.ExcludeColumn(Columns.VfsFile.CreatedAt)
+	}
 	applyOps(q, ops...)
 	res, err := q.Update()
 	if err != nil {
@@ -147,10 +153,9 @@ func (vr VfsRepo) OneVfsFolder(ctx context.Context, search *VfsFolderSearch, ops
 	obj := &VfsFolder{}
 	err := buildQuery(ctx, vr.db, obj, search, vr.filters[Tables.VfsFolder.Name], PagerTwo, ops...).Select()
 
-	switch err {
-	case pg.ErrMultiRows:
+	if errors.Is(err, pg.ErrMultiRows) {
 		return nil, err
-	case pg.ErrNoRows:
+	} else if errors.Is(err, pg.ErrNoRows) {
 		return nil, nil
 	}
 
@@ -171,6 +176,9 @@ func (vr VfsRepo) CountVfsFolders(ctx context.Context, search *VfsFolderSearch, 
 // AddVfsFolder adds VfsFolder to DB.
 func (vr VfsRepo) AddVfsFolder(ctx context.Context, vfsFolder *VfsFolder, ops ...OpFunc) (*VfsFolder, error) {
 	q := vr.db.ModelContext(ctx, vfsFolder)
+	if len(ops) == 0 {
+		q = q.ExcludeColumn(Columns.VfsFolder.CreatedAt)
+	}
 	applyOps(q, ops...)
 	_, err := q.Insert()
 
@@ -180,6 +188,9 @@ func (vr VfsRepo) AddVfsFolder(ctx context.Context, vfsFolder *VfsFolder, ops ..
 // UpdateVfsFolder updates VfsFolder in DB.
 func (vr VfsRepo) UpdateVfsFolder(ctx context.Context, vfsFolder *VfsFolder, ops ...OpFunc) (bool, error) {
 	q := vr.db.ModelContext(ctx, vfsFolder).WherePK()
+	if len(ops) == 0 {
+		q = q.ExcludeColumn(Columns.VfsFolder.CreatedAt)
+	}
 	applyOps(q, ops...)
 	res, err := q.Update()
 	if err != nil {
@@ -218,10 +229,9 @@ func (vr VfsRepo) OneVfsHash(ctx context.Context, search *VfsHashSearch, ops ...
 	obj := &VfsHash{}
 	err := buildQuery(ctx, vr.db, obj, search, vr.filters[Tables.VfsHash.Name], PagerTwo, ops...).Select()
 
-	switch err {
-	case pg.ErrMultiRows:
+	if errors.Is(err, pg.ErrMultiRows) {
 		return nil, err
-	case pg.ErrNoRows:
+	} else if errors.Is(err, pg.ErrNoRows) {
 		return nil, nil
 	}
 
@@ -242,6 +252,9 @@ func (vr VfsRepo) CountVfsHashes(ctx context.Context, search *VfsHashSearch, ops
 // AddVfsHash adds VfsHash to DB.
 func (vr VfsRepo) AddVfsHash(ctx context.Context, vfsHash *VfsHash, ops ...OpFunc) (*VfsHash, error) {
 	q := vr.db.ModelContext(ctx, vfsHash)
+	if len(ops) == 0 {
+		q = q.ExcludeColumn(Columns.VfsHash.CreatedAt)
+	}
 	applyOps(q, ops...)
 	_, err := q.Insert()
 
@@ -251,6 +264,9 @@ func (vr VfsRepo) AddVfsHash(ctx context.Context, vfsHash *VfsHash, ops ...OpFun
 // UpdateVfsHash updates VfsHash in DB.
 func (vr VfsRepo) UpdateVfsHash(ctx context.Context, vfsHash *VfsHash, ops ...OpFunc) (bool, error) {
 	q := vr.db.ModelContext(ctx, vfsHash).WherePK()
+	if len(ops) == 0 {
+		q = q.ExcludeColumn(Columns.VfsHash.CreatedAt)
+	}
 	applyOps(q, ops...)
 	res, err := q.Update()
 	if err != nil {

@@ -17,19 +17,19 @@ import (
 )
 
 var (
-	ErrInternal     = httpAsRpcError(http.StatusInternalServerError)
-	ErrNotFound     = httpAsRpcError(http.StatusNotFound)
+	ErrInternal     = newError(http.StatusInternalServerError)
+	ErrNotFound     = newError(http.StatusNotFound)
 	ErrInvalidSort  = zenrpc.NewStringError(http.StatusBadRequest, "invalid sort field")
 	ErrInvalidInput = zenrpc.NewStringError(http.StatusBadRequest, "invalid user input")
 )
 
 var filenameRegex = regexp.MustCompile(`^([0-9a-z_-])+\.([0-9a-z])+$`)
 
-func httpAsRpcError(code int) *zenrpc.Error {
+func newError(code int) *zenrpc.Error {
 	return zenrpc.NewStringError(code, http.StatusText(code))
 }
 
-func InternalError(err error) *zenrpc.Error {
+func newInternalError(err error) *zenrpc.Error {
 	return zenrpc.NewError(http.StatusInternalServerError, err)
 }
 
@@ -48,7 +48,7 @@ func NewService(repo db.VfsRepo, vfs VFS, dbc *pg.DB) Service {
 func (s Service) folderByID(ctx context.Context, id int) (*db.VfsFolder, error) {
 	dbc, err := s.repo.VfsFolderByID(ctx, id, s.repo.FullVfsFolder())
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	} else if dbc == nil {
 		return nil, ErrNotFound
 	}
@@ -67,7 +67,7 @@ func (s Service) GetFolder(ctx context.Context, rootFolderId int) (*Folder, erro
 
 	childFolders, err := s.repo.VfsFoldersByFilters(ctx, &db.VfsFolderSearch{ParentFolderID: &dbf.ID}, db.PagerNoLimit)
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	}
 
 	return NewFullFolder(dbf, childFolders), nil
@@ -82,11 +82,11 @@ func (s Service) GetFolderBranch(ctx context.Context, folderId int) ([]Folder, e
 
 	list, err := s.repo.FolderBranch(ctx, dbf.ID)
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	}
 
 	folders := make([]Folder, 0, len(list))
-	for i := 0; i < len(list); i++ {
+	for i := range list {
 		folders = append(folders, *NewFolder(&list[i]))
 	}
 	return folders, nil
@@ -119,11 +119,11 @@ func (s Service) GetFiles(ctx context.Context, folderId int, query *string, sort
 	search := (&db.VfsFileSearch{FolderID: &dbf.ID}).WithQuery(query)
 	list, err := s.repo.VfsFilesByFilters(ctx, search, db.Pager{Page: page, PageSize: pageSize}, db.WithSort(sort))
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	}
 
 	files := make([]File, 0, len(list))
-	for i := 0; i < len(list); i++ {
+	for i := range list {
 		// nolint
 		files = append(files, *NewFile(&list[i], s.vfs.WebPath(""), s.vfs.PreviewPath(""))) // TODO ns?
 	}
@@ -138,7 +138,7 @@ func (s Service) CountFiles(ctx context.Context, folderId int, query *string) (i
 	search := (&db.VfsFileSearch{FolderID: &folderId}).WithQuery(query)
 	count, err := s.repo.CountVfsFiles(ctx, search)
 	if err != nil {
-		return 0, InternalError(err)
+		return 0, newInternalError(err)
 	}
 
 	return count, nil
@@ -159,7 +159,7 @@ func (s Service) MoveFiles(ctx context.Context, fileIds []int64, destinationFold
 
 	r, err := s.repo.UpdateFilesFolder(ctx, fileIds, fl.ID)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return r, nil
@@ -173,7 +173,7 @@ func (s Service) DeleteFiles(ctx context.Context, fileIds []int64) (bool, error)
 
 	r, err := s.repo.DeleteVfsFiles(ctx, fileIds)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return r, nil
@@ -187,18 +187,18 @@ func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name strin
 
 	f, err := s.repo.VfsFileByID(ctx, fileId, db.EnabledOnly())
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	} else if f == nil {
 		return false, ErrNotFound
 	}
 
 	if !filenameRegex.MatchString(name) {
-		return false, httpAsRpcError(http.StatusNotAcceptable)
+		return false, newError(http.StatusNotAcceptable)
 	}
 
 	oldPath, newPath := f.Path, filepath.Join(filepath.Dir(f.Path), name)
-	if _, err := os.Stat(s.vfs.Path(NamespacePublic, newPath)); err == nil {
-		return false, httpAsRpcError(http.StatusConflict)
+	if _, err = os.Stat(s.vfs.Path(NamespacePublic, newPath)); err == nil {
+		return false, newError(http.StatusConflict)
 	}
 
 	// update path and move file in transaction
@@ -206,7 +206,7 @@ func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name strin
 		txr := s.repo.WithTransaction(tx)
 
 		f.Path = newPath
-		_, err := txr.UpdateVfsFile(ctx, f, db.WithColumns(db.Columns.VfsFile.Path))
+		_, err = txr.UpdateVfsFile(ctx, f, db.WithColumns(db.Columns.VfsFile.Path))
 		if err != nil {
 			return err
 		}
@@ -215,7 +215,7 @@ func (s Service) SetFilePhysicalName(ctx context.Context, fileId int, name strin
 	})
 
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return true, nil
@@ -229,7 +229,7 @@ func (s Service) SearchFolderByFileId(ctx context.Context, fileId int) (*Folder,
 
 	f, err := s.repo.VfsFileByID(ctx, fileId, s.repo.FullVfsFile())
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	} else if f == nil {
 		return nil, ErrNotFound
 	}
@@ -248,7 +248,7 @@ func (s Service) SearchFolderByFile(ctx context.Context, filename string) (*Fold
 
 	f, err := s.repo.OneVfsFile(ctx, &db.VfsFileSearch{Path: &searchPath}, s.repo.FullVfsFile())
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	} else if f == nil {
 		return nil, ErrNotFound
 	}
@@ -261,11 +261,11 @@ func (s Service) GetFavorites(ctx context.Context) ([]Folder, error) {
 	b := true
 	list, err := s.repo.VfsFoldersByFilters(ctx, &db.VfsFolderSearch{IsFavorite: &b}, db.PagerNoLimit)
 	if err != nil {
-		return nil, InternalError(err)
+		return nil, newInternalError(err)
 	}
 
 	folders := make([]Folder, 0, len(list))
-	for i := 0; i < len(list); i++ {
+	for i := range list {
 		folders = append(folders, *NewFolder(&list[i]))
 	}
 	return folders, nil
@@ -279,7 +279,7 @@ func (s Service) ManageFavorites(ctx context.Context, folderId int, isInFavorite
 
 	f, err := s.folderByID(ctx, folderId)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	} else if f == nil {
 		return false, ErrNotFound
 	}
@@ -307,7 +307,7 @@ func (s Service) CreateFolder(ctx context.Context, rootFolderId int, name string
 	}
 
 	if _, err = s.repo.AddVfsFolder(ctx, dbf); err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return false, nil
@@ -325,7 +325,7 @@ func (s Service) DeleteFolder(ctx context.Context, folderId int) (bool, error) {
 	}
 
 	if _, err = s.repo.DeleteVfsFolder(ctx, f.ID); err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return true, nil
@@ -340,12 +340,12 @@ func (s Service) MoveFolder(ctx context.Context, folderId, destinationFolderId i
 	// validate
 	fl, err := s.folderByID(ctx, folderId)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	dfl, err := s.folderByID(ctx, destinationFolderId)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	if fl == nil || dfl == nil {
@@ -353,13 +353,13 @@ func (s Service) MoveFolder(ctx context.Context, folderId, destinationFolderId i
 	}
 
 	// check recursive path
-	if pathList, err := s.repo.FolderBranch(ctx, destinationFolderId); err != nil {
-		return false, InternalError(err)
+	if pathList, er := s.repo.FolderBranch(ctx, destinationFolderId); er != nil {
+		return false, newInternalError(er)
 	} else {
 		for i := len(pathList) - 1; i >= 0; i-- {
 			p := pathList[i]
 			if p.ID == folderId {
-				return false, httpAsRpcError(http.StatusConflict)
+				return false, newError(http.StatusConflict)
 			}
 		}
 	}
@@ -368,7 +368,7 @@ func (s Service) MoveFolder(ctx context.Context, folderId, destinationFolderId i
 	fl.ParentFolderID = &dfl.ID
 	r, err := s.repo.UpdateVfsFolder(ctx, fl, db.WithColumns(db.Columns.VfsFolder.ParentFolderID))
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return r, nil
@@ -382,7 +382,7 @@ func (s Service) RenameFolder(ctx context.Context, folderId int, name string) (b
 
 	f, err := s.folderByID(ctx, folderId)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	} else if f == nil {
 		return false, ErrNotFound
 	}
@@ -420,15 +420,15 @@ func (s Service) UrlByHash(_ context.Context, hash, namespace, mediaType string)
 //zenrpc:namespace media namespace
 //zenrpc:mediaType type of media (possible values: small, medium, big, empty string)
 func (s Service) UrlByHashList(ctx context.Context, hashList []string, namespace, mediaType string) ([]UrlByHashListResponse, error) {
-	var resp []UrlByHashListResponse
-	for _, hash := range hashList {
+	resp := make([]UrlByHashListResponse, len(hashList))
+	for i, hash := range hashList {
 		// remove extension from hash
 		ext := filepath.Ext(hash)
 		hashNew := strings.TrimSuffix(filepath.Base(hash), ext)
 		ext = strings.TrimPrefix(ext, ".")
 
 		url := s.vfs.WebHashPathWithType(namespace, mediaType, NewFileHash(hashNew, ext))
-		resp = append(resp, UrlByHashListResponse{Hash: hash, WebPath: url})
+		resp[i] = UrlByHashListResponse{Hash: hash, WebPath: url}
 	}
 
 	return resp, nil
@@ -443,7 +443,7 @@ func (s Service) UrlByHashList(ctx context.Context, hashList []string, namespace
 func (s Service) DeleteHash(ctx context.Context, namespace, hash string) (bool, error) {
 	vfsHash, err := s.repo.VfsHashByID(ctx, hash, namespace)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 	if vfsHash == nil {
 		return false, ErrNotFound
@@ -451,7 +451,7 @@ func (s Service) DeleteHash(ctx context.Context, namespace, hash string) (bool, 
 
 	_, err = s.repo.DeleteVfsHash(ctx, hash, namespace)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	fileName := s.vfs.FullFile(namespace, NewFileHash(vfsHash.Hash, vfsHash.Extension))
@@ -459,11 +459,11 @@ func (s Service) DeleteHash(ctx context.Context, namespace, hash string) (bool, 
 	if os.IsNotExist(err) {
 		return false, ErrNotFound
 	} else if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 	err = os.Remove(fileName)
 	if err != nil {
-		return false, InternalError(err)
+		return false, newInternalError(err)
 	}
 
 	return true, nil

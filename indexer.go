@@ -1,32 +1,33 @@
+// nolint
 package vfs
 
 import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"io"
 	"io/fs"
-	"log"
 	"math"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/vmkteam/vfs/db"
+
 	"github.com/bbrks/go-blurhash"
 	"github.com/go-pg/pg/v10"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/labstack/echo/v4"
+	"github.com/vmkteam/embedlog"
 	"go.uber.org/atomic"
-
-	"github.com/vmkteam/vfs/db"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 )
 
 type HashIndexer struct {
+	embedlog.Logger
 	dbc          db.DB
 	vfs          VFS
 	repo         *db.VfsRepo
@@ -70,9 +72,10 @@ type cacheEntry struct {
 	mtime time.Time
 }
 
-func NewHashIndexer(dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64, calculateBlurHash bool) *HashIndexer {
+func NewHashIndexer(sl embedlog.Logger, dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64, calculateBlurHash bool) *HashIndexer {
 	cache, _ := lru.NewARC(defaultCacheSize)
 	return &HashIndexer{
+		Logger:       sl,
 		dbc:          dbc,
 		repo:         repo,
 		vfs:          vfs,
@@ -92,9 +95,9 @@ func (hi HashIndexer) Start() {
 		for i := 0; i < hi.totalWorkers; i++ {
 			wg.Add(1)
 			go func() {
-				if err := hi.ProcessQueue(context.Background()); err != nil {
-					log.Println(err)
-				}
+				ctx := context.Background()
+				rows, err := hi.ProcessQueue(ctx)
+				hi.PrintOrErr(ctx, "process queue", err, "rows", rows)
 				wg.Done()
 			}()
 		}
@@ -219,25 +222,24 @@ type ScanFilesResponse struct {
 	Error       string `json:"error,omitempty"` // error message
 }
 
-func (hi HashIndexer) ScanFilesHandler(w http.ResponseWriter, _ *http.Request) {
+func (hi HashIndexer) ScanFilesHandler(c echo.Context) error {
 	sr, err := hi.ScanFiles(context.Background())
-	e := json.NewEncoder(w)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = e.Encode(ScanFilesResponse{Error: err.Error()})
-		return
+		return c.JSON(http.StatusInternalServerError, ScanFilesResponse{Error: err.Error()})
 	}
-	_ = e.Encode(ScanFilesResponse{ScanResults: sr})
+
+	return c.JSON(http.StatusOK, ScanFilesResponse{ScanResults: sr})
 }
 
 // ProcessQueue gets not indexed data from vfsHashes, index and saves data to db.
-func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
+func (hi HashIndexer) ProcessQueue(ctx context.Context) (int, error) {
+	var rows int
 	err := hi.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		repo := hi.repo.WithTransaction(tx)
 		// get data from queue
 		list, err := repo.HashesForUpdate(ctx, hi.batchSize)
 		if err != nil {
-			return err
+			return fmt.Errorf("hash for update failed: %w", err)
 		}
 		if len(list) < 1 {
 			return nil
@@ -278,82 +280,69 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) error {
 				db.Columns.VfsHash.Error,
 			).
 			Update()
+
+		rows = len(list)
 		return err
 	})
-	return err
+	return rows, err
 }
 
-func (hi HashIndexer) Preview() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-			return
-		}
-		dir, file := path.Split(strings.TrimPrefix(r.URL.Path, "/preview/"))
-		dir = strings.TrimSuffix(dir, "/")
-		file = strings.TrimSuffix(file, filepath.Ext(file))
-		ns := DefaultNamespace
-		if dir != "" && hi.vfs.IsValidNamespace(dir) {
-			ns = dir
-		}
-		key := cacheKey(ns, file)
-		entry, ok := hi.cache.Get(key)
-		if ok {
-			writePreview(entry.(cacheEntry), w)
-			return
-		}
-
-		hash, err := hi.repo.OneVfsHash(context.Background(), &db.VfsHashSearch{
-			Hash:      &file,
-			Namespace: &ns,
-		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if hash == nil {
-			http.NotFound(w, r)
-			return
-		}
-
-		if hash.Width == 0 || hash.Height == 0 || hash.Blurhash == nil || *hash.Blurhash == "" {
-			http.NotFound(w, r)
-			return
-		}
-
-		if imsTime, err := time.Parse(httpTimeLayout, r.Header.Get("If-Modified-Since")); err == nil {
-			if hash.IndexedAt.Before(imsTime) {
-				w.WriteHeader(http.StatusNotModified)
-				return
-			}
-		}
-
-		newWidth := 32
-		newHeight := int(math.Round(float64(newWidth*hash.Height) / float64(hash.Width)))
-
-		img, err := blurhash.Decode(*hash.Blurhash, newWidth, newHeight, 1)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		buf := bytes.NewBuffer(nil)
-		if err := png.Encode(buf, img); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		entry = cacheEntry{data: buf.Bytes(), mtime: hash.IndexedAt.UTC()}
-		hi.cache.Add(key, entry)
-		writePreview(entry.(cacheEntry), w)
+func (hi HashIndexer) Preview(c echo.Context) error {
+	nsp, file := c.Param("ns"), c.Param("file")
+	file = strings.TrimSuffix(file, filepath.Ext(file))
+	ns := DefaultNamespace
+	if nsp != "" && hi.vfs.IsValidNamespace(nsp) {
+		ns = nsp
 	}
+	key := cacheKey(ns, file)
+	entry, ok := hi.cache.Get(key)
+	if ok {
+		return writePreview(entry.(cacheEntry), c)
+	}
+
+	hash, err := hi.repo.OneVfsHash(context.Background(), &db.VfsHashSearch{
+		Hash:      &file,
+		Namespace: &ns,
+	})
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	if hash == nil {
+		return c.String(http.StatusNotFound, "hash not found")
+	}
+
+	if hash.Width == 0 || hash.Height == 0 || hash.Blurhash == nil || *hash.Blurhash == "" {
+		return c.String(http.StatusNotFound, "hash not indexed yet")
+	}
+
+	if imsTime, err := time.Parse(httpTimeLayout, c.Request().Header.Get("If-Modified-Since")); err == nil {
+		if hash.IndexedAt.Before(imsTime) {
+			return c.NoContent(http.StatusNotModified)
+		}
+	}
+
+	newWidth := 32
+	newHeight := int(math.Round(float64(newWidth*hash.Height) / float64(hash.Width)))
+
+	img, err := blurhash.Decode(*hash.Blurhash, newWidth, newHeight, 1)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	buf := bytes.NewBuffer(nil)
+	if err := png.Encode(buf, img); err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	entry = cacheEntry{data: buf.Bytes(), mtime: hash.IndexedAt.UTC()}
+	hi.cache.Add(key, entry)
+	return writePreview(entry.(cacheEntry), c)
 }
 
-func writePreview(e cacheEntry, w http.ResponseWriter) {
-	w.Header().Set("Last-Modified", e.mtime.UTC().Format(httpTimeLayout))
-	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Content-Length", strconv.Itoa(len(e.data)))
-	w.Header().Set("Cache-Control", "public, max-age=31536000;")
+func writePreview(e cacheEntry, c echo.Context) error {
+	c.Response().Header().Set("Last-Modified", e.mtime.UTC().Format(httpTimeLayout))
+	c.Response().Header().Set("Content-Length", strconv.Itoa(len(e.data)))
+	c.Response().Header().Set("Cache-Control", "public, max-age=31536000;")
 
-	_, _ = w.Write(e.data)
+	return c.Blob(http.StatusOK, "image/png", e.data)
 }
 
 func cacheKey(ns, hash string) string {

@@ -7,7 +7,7 @@ import (
 	"github.com/go-pg/pg/v10"
 )
 
-func (vr VfsRepo) FolderBranch(ctx context.Context, folderId int) (list []VfsFolder, err error) {
+func (vr VfsRepo) FolderBranch(ctx context.Context, folderID int) (list []VfsFolder, err error) {
 	_, err = vr.db.QueryContext(ctx, &list, `
 WITH RECURSIVE r AS (
    SELECT *, 1 AS level from "vfsFolders"
@@ -16,7 +16,7 @@ WITH RECURSIVE r AS (
    FROM "vfsFolders" ff
  		JOIN r ON ff."folderId" = r."parentFolderId"
 )
-SELECT * FROM r ORDER by level DESC`, folderId)
+SELECT * FROM r ORDER by level DESC`, folderID)
 
 	return
 }
@@ -30,14 +30,14 @@ func (vfs *VfsFileSearch) WithQuery(query *string) *VfsFileSearch {
 }
 
 func (vr VfsRepo) NextFileID() (int, error) {
-	var max int
-	_, err := vr.db.Query(pg.Scan(&max), `select nextval('"vfsFiles_fileId_seq"')`)
+	var maxFileID int
+	_, err := vr.db.Query(pg.Scan(&maxFileID), `select nextval('"vfsFiles_fileId_seq"')`)
 
-	return max, err
+	return maxFileID, err
 }
 
-func (vr VfsRepo) UpdateFilesFolder(ctx context.Context, fileIDs []int64, newFolderId int) (bool, error) {
-	q := vr.db.ModelContext(ctx, &VfsFile{FolderID: newFolderId}).
+func (vr VfsRepo) UpdateFilesFolder(ctx context.Context, fileIDs []int64, newFolderID int) (bool, error) {
+	q := vr.db.ModelContext(ctx, &VfsFile{FolderID: newFolderID}).
 		Column(Columns.VfsFile.FolderID).
 		Where("? IN (?)", pg.Ident(Columns.VfsFile.ID), pg.Ints(fileIDs))
 

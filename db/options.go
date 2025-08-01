@@ -51,7 +51,7 @@ func NewSortField(column string, sortDesc bool) SortField {
 // OpFunc is a function that applies different options to query.
 type OpFunc func(query *orm.Query)
 
-// WithColumns is a function that adds uses specific columns to query.
+// WithSort add sorting to query.
 func WithSort(fields ...SortField) OpFunc {
 	return func(query *orm.Query) {
 		for _, f := range fields {
@@ -70,6 +70,20 @@ func WithColumns(cols ...string) OpFunc {
 					break
 				} else {
 					query.Column(col)
+					break
+				}
+			}
+		}
+	}
+}
+
+// WithoutColumns is a function that excludes user specific columns from a query.
+func WithoutColumns(cols ...string) OpFunc {
+	return func(query *orm.Query) {
+		for _, col := range cols {
+			for _, r := range col {
+				if !unicode.IsLetter(r) || !unicode.IsUpper(r) {
+					query.ExcludeColumn(col)
 					break
 				}
 			}
@@ -112,13 +126,18 @@ func WithJoinedIDs(ids []int, tableAlias, column string) OpFunc {
 	}
 }
 
+// OnConflict adds ON CONFLICT statement to update query
+func OnConflict(s string, params ...interface{}) OpFunc {
+	return func(query *orm.Query) {
+		query.OnConflict(s, params...)
+	}
+}
+
 // applyOps applies operations to current orm query.
-func applyOps(q *orm.Query, ops ...OpFunc) *orm.Query {
+func applyOps(q *orm.Query, ops ...OpFunc) {
 	for _, op := range ops {
 		op(q)
 	}
-
-	return q
 }
 
 const (
