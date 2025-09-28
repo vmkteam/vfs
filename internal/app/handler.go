@@ -4,12 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	zm "github.com/vmkteam/zenrpc-middleware"
+	"github.com/vmkteam/appkit"
 )
 
 func (a *App) registerMiddlewares() {
@@ -24,7 +25,6 @@ func (a *App) registerMiddlewares() {
 		AllowHeaders: headers,
 	}))
 
-	a.echo.Use(zm.EchoIPContext())
 	a.echo.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:    true,
 		LogURI:       true,
@@ -57,15 +57,7 @@ func (a *App) registerMiddlewares() {
 // registerDebugHandlers adds /debug/pprof handlers into a.echo instance.
 func (a *App) registerDebugHandlers() {
 	dbg := a.echo.Group("/debug")
-
-	// add pprof integration
-	dbg.Any("/pprof/*", func(c echo.Context) error {
-		if h, p := http.DefaultServeMux.Handler(c.Request()); p != "" {
-			h.ServeHTTP(c.Response(), c.Request())
-			return nil
-		}
-		return echo.NewHTTPError(http.StatusNotFound)
-	})
+	dbg.Any("/pprof/*", appkit.PprofHandler)
 
 	// add healthcheck
 	a.echo.GET("/status", func(c echo.Context) error {
@@ -77,6 +69,10 @@ func (a *App) registerDebugHandlers() {
 		}
 		return c.String(http.StatusOK, "OK")
 	})
+
+	if a.cfg.Server.IsDevel {
+		a.echo.GET("/", appkit.RenderRoutes(a.appName, a.echo))
+	}
 }
 
 // issueTokenHandler issues new jwt token for 1 hour. Subject can be set by id GET/POST param

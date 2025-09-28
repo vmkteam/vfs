@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/go-pg/pg/v10"
 	monitor "github.com/hypnoglow/go-pg-monitor"
 	"github.com/labstack/echo/v4"
+	"github.com/vmkteam/appkit"
 	"github.com/vmkteam/embedlog"
 	"github.com/vmkteam/rpcgen/v2"
 	"github.com/vmkteam/rpcgen/v2/golang"
@@ -65,7 +65,7 @@ func New(appName string, sl embedlog.Logger, cfg Config, dbc *pg.DB) (*App, erro
 		cfg:     cfg,
 		db:      db.New(dbc),
 		dbc:     dbc,
-		echo:    echo.New(),
+		echo:    appkit.NewEcho(),
 	}
 
 	// init vfs
@@ -81,12 +81,6 @@ func New(appName string, sl embedlog.Logger, cfg Config, dbc *pg.DB) (*App, erro
 		a.repo = &repo
 	}
 
-	// setup echo
-	a.echo.HideBanner = true
-	a.echo.HidePort = true
-	_, mask, _ := net.ParseCIDR("0.0.0.0/0")
-	a.echo.IPExtractor = echo.ExtractIPFromRealIPHeader(echo.TrustIPRange(mask))
-
 	// add services
 
 	return a, nil
@@ -98,6 +92,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.registerMetrics()
 	a.registerDebugHandlers()
 	a.registerHandlers()
+	a.registerMetadata()
 	if a.dbc != nil {
 		a.registerAPIHandlers()
 	}
@@ -129,10 +124,10 @@ func (a *App) registerAPIHandlers() {
 	gen := rpcgen.FromSMD(srv.SMD())
 
 	a.echo.Any("/rpc/", echo.WrapHandler(a.authMiddleware(zm.XRequestID(srv))))
-	a.echo.GET("/rpc/doc/", echo.WrapHandler(http.HandlerFunc(zenrpc.SMDBoxHandler)))
-	a.echo.GET("/rpc/openrpc.json", echo.WrapHandler(http.HandlerFunc(rpcgen.Handler(gen.OpenRPC(a.appName, "http://localhost:8075/rpc")))))
-	a.echo.GET("/rpc/api.ts", echo.WrapHandler(http.HandlerFunc(rpcgen.Handler(gen.TSClient(nil)))))
-	a.echo.GET("/rpc/api.go", echo.WrapHandler(http.HandlerFunc(rpcgen.Handler(gen.GoClient(golang.Settings{Package: a.appName})))))
+	a.echo.GET("/rpc/doc/", appkit.EchoHandlerFunc(zenrpc.SMDBoxHandler))
+	a.echo.GET("/rpc/openrpc.json", appkit.EchoHandlerFunc(rpcgen.Handler(gen.OpenRPC(a.appName, "http://localhost:8075/rpc"))))
+	a.echo.GET("/rpc/api.ts", appkit.EchoHandlerFunc(rpcgen.Handler(gen.TSClient(nil))))
+	a.echo.GET("/rpc/api.go", appkit.EchoHandlerFunc(rpcgen.Handler(gen.GoClient(golang.Settings{Package: a.appName}))))
 
 	a.echo.Any("/upload/file", echo.WrapHandler(a.authMiddleware(a.vfs.UploadHandler(repo))))
 }
@@ -156,6 +151,26 @@ func (a *App) registerHandlers() {
 		go hi.Start()
 		defer hi.Stop()
 	}
+}
+
+// registerMetadata is a function that registers meta info from service. Must be updated.
+func (a *App) registerMetadata() {
+	opts := appkit.MetadataOpts{
+		HasPublicAPI:  true,
+		HasPrivateAPI: true,
+		HasCronJobs:   a.cfg.Server.Index,
+	}
+
+	if a.dbc != nil {
+		opts.DBs = []appkit.DBMetadata{
+			appkit.NewDBMetadata(a.cfg.Database.Database, a.cfg.Database.PoolSize, false),
+		}
+	}
+
+	md := appkit.NewMetadataManager(opts)
+	md.RegisterMetrics()
+
+	a.echo.GET("/debug/metadata", md.Handler)
 }
 
 // runHTTPServer is a function that starts http listener using labstack/echo.
