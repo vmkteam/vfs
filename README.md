@@ -39,3 +39,41 @@ HTTP Params:
 * Default namespace and default extension (jpg): `curl -F 'Filedata=@image.jpg'  http://localhost:9999/upload/hash`
 * Specific namespace (test): `curl -F 'Filedata=@image.jpg' http://localhost:9999/upload/hash?ns=test`
 * Specific namespace (test) with file extension: `curl -F 'Filedata=@image.gif'  http://localhost:9999/upload/hash?ns=test&ext=gif`
+
+### Default configuration
+
+* Run service in cli with `init-cfg` argument to generate `config.toml` with default configuration. 
+* Default configuration example:
+
+```toml
+[Server]
+  Host = "0.0.0.0"
+  Port = 9999
+  IsDevel = false
+  JWTHeader = "AuthorizationJWT"
+  JWTKey = "<some_generated_jwt_key>"
+  Index = false
+  IndexBlurhash = true
+  IndexWorkers = 6
+  IndexBatchSize = 64
+
+[VFS]
+  MaxFileSize = 33554432
+  Path = "testdata"
+  WebPath = "/media/"
+  PreviewPath = "/media/small/"
+  Namespaces = ["items", "test"]
+  Extensions = ["jpg", "jpeg", "png", "gif"]
+  MimeTypes = ["image/jpeg", "image/png", "image/gif"]
+  UploadFormName = "Filedata"
+  SaltedFilenames = false
+  SkipFolderVerify = false
+
+[Database]
+  Addr     = "localhost:5432"
+  User     = "postgres"
+  Password = ""
+  Database = "apisrv"
+  PoolSize = 10
+  ApplicationName = "vfssrv"
+```

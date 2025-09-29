@@ -92,7 +92,7 @@ func main() {
 
 func exitOnError(err error) {
 	if err != nil {
-		//nolint:sloglint,noctx
+		//nolint:sloglint
 		slog.Error("fatal error", "err", err)
 		os.Exit(1)
 	}
