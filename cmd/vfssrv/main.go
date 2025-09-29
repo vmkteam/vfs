@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/go-pg/pg/v10"
 	"github.com/namsral/flag"
+	"github.com/vmkteam/appkit"
 	"github.com/vmkteam/embedlog"
 )
 
@@ -48,6 +48,8 @@ func main() {
 		sl = embedlog.NewDevLogger()
 	}
 	slog.SetDefault(sl.Log()) // set default logger
+	ql := db.NewQueryLogger(sl)
+	pg.SetLogger(ql)
 
 	// check for default config
 	if *flInitConfig && *flConfigPath != "" {
@@ -65,7 +67,7 @@ func main() {
 		dbc = pg.Connect(cfg.Database)
 		exitOnError(dbc.Ping(ctx))
 		if *flDev {
-			dbc.AddQueryHook(db.NewQueryLogger(sl))
+			dbc.AddQueryHook(ql)
 		}
 	}
 
@@ -73,7 +75,7 @@ func main() {
 	a, err := app.New(appName, sl, cfg, dbc)
 	exitOnError(err)
 
-	sl.Print(ctx, "starting", "app", appName, "version", appVersion(), "host", cfg.Server.Host, "port", cfg.Server.Port, "jwtHeader", cfg.Server.JWTHeader)
+	sl.Print(ctx, "starting", "app", appName, "version", appkit.Version(), "host", cfg.Server.Host, "port", cfg.Server.Port, "jwtHeader", cfg.Server.JWTHeader)
 	sl.Print(ctx, "app features", "rpc", dbc != nil, "indexer", cfg.Server.Index, "indexBlurhash", cfg.Server.Index && cfg.Server.IndexBlurhash)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -94,27 +96,6 @@ func exitOnError(err error) {
 		slog.Error("fatal error", "err", err)
 		os.Exit(1)
 	}
-}
-
-// appVersion returns app version from VCS info.
-func appVersion() string {
-	result := "devel"
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return result
-	}
-
-	for _, v := range info.Settings {
-		if v.Key == "vcs.revision" {
-			result = v.Value
-		}
-	}
-
-	if len(result) > 8 {
-		result = result[:8]
-	}
-
-	return result
 }
 
 // writeConfig writes default config file to `-config` path.

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/go-pg/pg/v10"
@@ -17,6 +18,11 @@ type QueryLogger struct {
 
 func NewQueryLogger(logger embedlog.Logger) QueryLogger {
 	return QueryLogger{Logger: logger}
+}
+
+// Printf used for pg.SetLogger
+func (s QueryLogger) Printf(_ context.Context, format string, args ...interface{}) {
+	s.Logger.With(slog.String("lib", "pg")).Errorf(format, args...)
 }
 
 func (ql QueryLogger) BeforeQuery(ctx context.Context, event *pg.QueryEvent) (context.Context, error) {
