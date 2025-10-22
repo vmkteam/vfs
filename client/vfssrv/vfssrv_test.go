@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/vmkteam/appkit"
@@ -15,7 +16,8 @@ func TestNewClient_Example(t *testing.T) {
 	c := NewClient(Opts{
 		ApiURL:    "http://localhost:9999/",
 		PublicURL: "http://localhost:9999/media/",
-	}, appkit.NewInternalHeaders("testsrv", "v1.0.0"))
+		Client:    appkit.NewHTTPClient("appsrv", "v1", time.Second*20),
+	})
 
 	ctx := t.Context()
 	ctx = context.WithValue(ctx, echo.HeaderXRequestID, "testreq1") //nolint:staticcheck
@@ -85,7 +87,7 @@ func TestClient_FilePath(t *testing.T) {
 	mediaURL := "http://localhost:9999/media/"
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewClient(Opts{ApiURL: mediaURL}, nil)
+			c := NewClient(Opts{ApiURL: mediaURL})
 			got, err := c.FilePath(tt.args.namespace, tt.args.hash, tt.args.size, tt.args.ext)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FilePath() error = %v, wantErr %v", err, tt.wantErr)

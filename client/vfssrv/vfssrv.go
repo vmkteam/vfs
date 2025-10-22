@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vmkteam/appkit"
 )
 
 var (
@@ -62,11 +64,10 @@ type Opts struct {
 }
 
 type Client struct {
-	header http.Header
-	opts   Opts
+	opts Opts
 }
 
-func NewClient(opts Opts, header http.Header) *Client {
+func NewClient(opts Opts) *Client {
 	if opts.Timeout == 0 {
 		opts.Timeout = defaultTimeout
 	}
@@ -90,8 +91,7 @@ func NewClient(opts Opts, header http.Header) *Client {
 	}
 
 	return &Client{
-		opts:   opts,
-		header: header,
+		opts: opts,
 	}
 }
 
@@ -103,13 +103,7 @@ func (c *Client) apiURL(basePath string) string {
 
 // setHeaders adds additional passed headers and X-Request-Id from context.
 func (c *Client) setHeaders(ctx context.Context, req *http.Request) {
-	req.Header = c.header.Clone()
-
-	const key = "X-Request-Id"
-	xRequestID, ok := ctx.Value(key).(string)
-	if ok && req.Header.Get(key) == "" && xRequestID != "" {
-		req.Header.Add(key, xRequestID)
-	}
+	appkit.SetXRequestIDFromCtx(ctx, req)
 }
 
 // AuthToken returns vfs auth token for further requests.
