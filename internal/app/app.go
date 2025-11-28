@@ -123,7 +123,7 @@ func (a *App) registerAPIHandlers() {
 
 	gen := rpcgen.FromSMD(srv.SMD())
 
-	a.echo.Any("/rpc/", echo.WrapHandler(a.authMiddleware(zm.XRequestID(srv))))
+	a.echo.Any("/rpc/", echo.WrapHandler(a.authMiddleware(appkit.XRequestID(srv))))
 	a.echo.GET("/rpc/doc/", appkit.EchoHandlerFunc(zenrpc.SMDBoxHandler))
 	a.echo.GET("/rpc/openrpc.json", appkit.EchoHandlerFunc(rpcgen.Handler(gen.OpenRPC(a.appName, "http://localhost:8075/rpc"))))
 	a.echo.GET("/rpc/api.ts", appkit.EchoHandlerFunc(rpcgen.Handler(gen.TSClient(nil))))

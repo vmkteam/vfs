@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/go-pg/pg/v10"
+	"github.com/vmkteam/appkit"
 	"github.com/vmkteam/embedlog"
-	zm "github.com/vmkteam/zenrpc-middleware"
 	"github.com/vmkteam/zenrpc/v2"
 )
 
@@ -35,7 +35,7 @@ func (ql QueryLogger) BeforeQuery(ctx context.Context, event *pg.QueryEvent) (co
 }
 
 func (ql QueryLogger) AfterQuery(ctx context.Context, event *pg.QueryEvent) error {
-	method := zm.MethodFromContext(ctx)
+	method := appkit.MethodFromContext(ctx)
 	if method != "" {
 		method = fmt.Sprintf("%s.%s", zenrpc.NamespaceFromContext(ctx), method)
 	}
