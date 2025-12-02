@@ -259,6 +259,10 @@ func (v VFS) IsValidExtension(ext string) bool {
 	}
 
 	for _, e := range v.cfg.Extensions {
+		if e == "*" {
+			return true
+		}
+
 		if e == ext {
 			return true
 		}
