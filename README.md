@@ -42,10 +42,9 @@ HTTP Params:
 
 ### Default configuration
 
-* Run service in cli with `init-cfg` argument to generate `config.toml` with default configuration. 
+* Run service in cli with `init-cfg` argument to generate `config.toml` with default configuration.
+* You can use `*` in `VFS.MimeTypes` or in `VFS.Extensions` for ignoring these checks.
 * Default configuration example:
-
-You can use `*` in `VFS.MimeTypes` or in `VFS.Extensions` for ignoring these checks.
 
 ```toml
 [Server]
