@@ -38,6 +38,10 @@ type ServerConfig struct {
 
 	// IndexBatchSize is Indexer batch size for files, default is 64
 	IndexBatchSize uint64
+
+	// IndexNamespacesPriority defines namespace order for indexer.
+	// If set, hashes are processed in this order first.
+	IndexNamespacesPriority []string
 }
 
 type Config struct {
@@ -84,7 +88,7 @@ func New(appName string, sl embedlog.Logger, cfg Config, dbc *pg.DB) (*App, erro
 
 	// add services
 	if cfg.Server.Index {
-		a.hi = vfs.NewHashIndexer(a.Logger, a.db, a.repo, a.vfs, a.cfg.Server.IndexWorkers, a.cfg.Server.IndexBatchSize, a.cfg.Server.IndexBlurhash)
+		a.hi = vfs.NewHashIndexer(a.Logger, a.db, a.repo, a.vfs, a.cfg.Server.IndexWorkers, a.cfg.Server.IndexBatchSize, a.cfg.Server.IndexBlurhash, a.cfg.Server.IndexNamespacesPriority)
 	}
 
 	return a, nil

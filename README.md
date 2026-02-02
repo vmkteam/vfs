@@ -57,6 +57,7 @@ HTTP Params:
   IndexBlurhash = true
   IndexWorkers = 6
   IndexBatchSize = 64
+  IndexNamespacesPriority = []
 
 [VFS]
   MaxFileSize = 33554432

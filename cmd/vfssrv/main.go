@@ -102,15 +102,16 @@ func exitOnError(err error) {
 func writeConfig(configPath string) error {
 	var defaultConfig = app.Config{
 		Server: app.ServerConfig{
-			Host:           "0.0.0.0",
-			Port:           9999,
-			IsDevel:        false,
-			JWTHeader:      "AuthorizationJWT",
-			JWTKey:         randomString(16),
-			Index:          false,
-			IndexBlurhash:  true,
-			IndexWorkers:   runtime.NumCPU() / 2,
-			IndexBatchSize: 64,
+			Host:                    "0.0.0.0",
+			Port:                    9999,
+			IsDevel:                 false,
+			JWTHeader:               "AuthorizationJWT",
+			JWTKey:                  randomString(16),
+			Index:                   false,
+			IndexBlurhash:           true,
+			IndexWorkers:            runtime.NumCPU() / 2,
+			IndexBatchSize:          64,
+			IndexNamespacesPriority: []string{},
 		},
 		Database: nil,
 		VFS: vfs.Config{

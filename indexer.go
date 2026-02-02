@@ -45,6 +45,7 @@ type HashIndexer struct {
 	totalWorkers int
 	batchSize    uint64
 	calcBlurHash bool
+	nsPriority   []string
 
 	cache    *lru.ARCCache
 	t        *time.Ticker
@@ -72,7 +73,7 @@ type cacheEntry struct {
 	mtime time.Time
 }
 
-func NewHashIndexer(sl embedlog.Logger, dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64, calculateBlurHash bool) *HashIndexer {
+func NewHashIndexer(sl embedlog.Logger, dbc db.DB, repo *db.VfsRepo, vfs VFS, totalWorkers int, batchSize uint64, calculateBlurHash bool, nsPriority []string) *HashIndexer {
 	cache, _ := lru.NewARC(defaultCacheSize)
 	return &HashIndexer{
 		Logger:       sl,
@@ -85,6 +86,7 @@ func NewHashIndexer(sl embedlog.Logger, dbc db.DB, repo *db.VfsRepo, vfs VFS, to
 		totalWorkers: totalWorkers,
 		batchSize:    batchSize,
 		calcBlurHash: calculateBlurHash,
+		nsPriority:   nsPriority,
 	}
 }
 
@@ -95,9 +97,10 @@ func (hi HashIndexer) Start() {
 		for i := 0; i < hi.totalWorkers; i++ {
 			wg.Add(1)
 			go func() {
+				start := time.Now()
 				ctx := context.Background()
 				rows, err := hi.ProcessQueue(ctx)
-				hi.PrintOrErr(ctx, "process queue", err, "rows", rows)
+				hi.PrintOrErr(ctx, "process queue", err, "rows", rows, "duration", time.Since(start).String())
 				wg.Done()
 			}()
 		}
@@ -237,7 +240,7 @@ func (hi HashIndexer) ProcessQueue(ctx context.Context) (int, error) {
 	err := hi.dbc.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		repo := hi.repo.WithTransaction(tx)
 		// get data from queue
-		list, err := repo.HashesForUpdate(ctx, hi.batchSize)
+		list, err := repo.HashesForUpdate(ctx, hi.batchSize, hi.nsPriority)
 		if err != nil {
 			return fmt.Errorf("hash for update failed: %w", err)
 		}
