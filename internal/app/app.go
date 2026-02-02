@@ -56,6 +56,7 @@ type App struct {
 	vfs     vfs.VFS
 	mon     *monitor.Monitor
 	echo    *echo.Echo
+	hi      *vfs.HashIndexer
 }
 
 func New(appName string, sl embedlog.Logger, cfg Config, dbc *pg.DB) (*App, error) {
@@ -82,6 +83,9 @@ func New(appName string, sl embedlog.Logger, cfg Config, dbc *pg.DB) (*App, erro
 	}
 
 	// add services
+	if cfg.Server.Index {
+		a.hi = vfs.NewHashIndexer(a.Logger, a.db, a.repo, a.vfs, a.cfg.Server.IndexWorkers, a.cfg.Server.IndexBatchSize, a.cfg.Server.IndexBlurhash)
+	}
 
 	return a, nil
 }
@@ -95,6 +99,10 @@ func (a *App) Run(ctx context.Context) error {
 	a.registerMetadata()
 	if a.dbc != nil {
 		a.registerAPIHandlers()
+	}
+
+	if a.hi != nil {
+		go a.hi.Start()
 	}
 
 	return a.runHTTPServer(ctx, a.cfg.Server.Host, a.cfg.Server.Port)
@@ -140,16 +148,10 @@ func (a *App) registerHandlers() {
 	a.echo.Static(a.cfg.VFS.WebPath, a.cfg.VFS.Path)
 
 	// enabled indexer
-	sc := a.cfg.Server
-	if sc.Index {
-		hi := vfs.NewHashIndexer(a.Logger, a.db, a.repo, a.vfs, sc.IndexWorkers, sc.IndexBatchSize, sc.IndexBlurhash)
-
-		a.echo.Any("/scan-files", hi.ScanFilesHandler)
-		a.echo.GET("/preview/:ns/:file", hi.Preview)
-		a.echo.GET("/preview/:file", hi.Preview)
-
-		go hi.Start()
-		defer hi.Stop()
+	if a.hi != nil {
+		a.echo.Any("/scan-files", a.hi.ScanFilesHandler)
+		a.echo.GET("/preview/:ns/:file", a.hi.Preview)
+		a.echo.GET("/preview/:file", a.hi.Preview)
 	}
 }
 
@@ -188,6 +190,10 @@ func (a *App) Shutdown(timeout time.Duration) {
 
 	if a.mon != nil {
 		a.mon.Close()
+	}
+
+	if a.hi != nil {
+		a.hi.Stop()
 	}
 
 	if err := a.echo.Shutdown(ctx); err != nil {
