@@ -62,22 +62,28 @@ func (vr VfsRepo) DeleteVfsFiles(ctx context.Context, fileIDs []int64) (bool, er
 	return res.RowsAffected() > 0, err
 }
 
-func (vr VfsRepo) HashesForUpdate(ctx context.Context, limit uint64) (list []VfsHash, err error) {
-	_, err = vr.db.QueryContext(
-		ctx,
-		&list,
-		`SELECT "`+
-			strings.Join([]string{
-				Columns.VfsHash.Hash,
-				Columns.VfsHash.Namespace,
-				Columns.VfsHash.Extension,
-			}, `", "`)+`"`+
-			` FROM "`+Tables.VfsHash.Name+`"`+
-			` WHERE "`+Columns.VfsHash.IndexedAt+`" IS NULL`+
-			` LIMIT ?`+
-			` FOR NO KEY UPDATE SKIP LOCKED`,
-		limit,
-	)
+func (vr VfsRepo) HashesForUpdate(ctx context.Context, limit uint64, nsPriority []string) (list []VfsHash, err error) {
+	query := `SELECT "` +
+		strings.Join([]string{
+			Columns.VfsHash.Hash,
+			Columns.VfsHash.Namespace,
+			Columns.VfsHash.Extension,
+		}, `", "`) + `"` +
+		` FROM "` + Tables.VfsHash.Name + `"` +
+		` WHERE "` + Columns.VfsHash.IndexedAt + `" IS NULL`
+
+	if len(nsPriority) > 0 {
+		query += ` ORDER BY array_position(?::text[], "` + Columns.VfsHash.Namespace + `"), "` + Columns.VfsHash.FileSize + `"`
+	}
+
+	query += ` LIMIT ?` +
+		` FOR NO KEY UPDATE SKIP LOCKED`
+
+	if len(nsPriority) > 0 {
+		_, err = vr.db.QueryContext(ctx, &list, query, pg.Array(nsPriority), limit)
+	} else {
+		_, err = vr.db.QueryContext(ctx, &list, query, limit)
+	}
 	return
 }
 
