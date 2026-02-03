@@ -406,7 +406,7 @@ func (v VFS) HashUploadHandler(repo *db.VfsRepo) http.HandlerFunc {
 func (v VFS) UploadHandler(repo db.VfsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ns, ext := r.FormValue("ns"), strings.ToLower(r.FormValue("ext"))
-		folderID, err := strconv.Atoi(r.FormValue("folderID"))
+		folderID, err := strconv.Atoi(r.FormValue("folderId"))
 		if err != nil {
 			http.Error(w, "bad folder "+err.Error(), http.StatusBadRequest)
 			return
