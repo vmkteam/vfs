@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -126,6 +127,8 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 
 			switch {
+			case errors.Is(err, jwt.ErrTokenExpired):
+				errMsg, errCode = err.Error(), http.StatusUnauthorized
 			case err != nil:
 				errMsg, errCode = err.Error(), http.StatusForbidden
 			case !token.Valid:
