@@ -1,11 +1,12 @@
 package app
 
 import (
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func Test_authMiddleware(t *testing.T) {
