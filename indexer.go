@@ -30,6 +30,11 @@ import (
 	"go.uber.org/atomic"
 )
 
+// MaxBlurHashPixels is the largest picture the indexer decodes for a blurhash; a bigger one (a 43 MP map) gets
+// its size only: decoding it takes hundreds of MB and seconds while the queue holds its transaction.
+// 0 — no limit.
+var MaxBlurHashPixels = 24_000_000
+
 const (
 	defaultInterval  = time.Second * 5
 	defaultCacheSize = 1024
@@ -141,7 +146,11 @@ func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
 	hash.Width = im.Width
 	hash.Height = im.Height
 
-	// detect image hash
+	// the picture is decoded only for the blurhash, and a huge one gets none
+	if !hi.calcBlurHash || (MaxBlurHashPixels > 0 && im.Width*im.Height > MaxBlurHashPixels) {
+		return hash, nil
+	}
+
 	_, err = reader.Seek(0, io.SeekStart)
 	if err != nil {
 		return hash, err
@@ -152,16 +161,13 @@ func (hi HashIndexer) IndexFile(ns, relFilepath string) (HashInfo, error) {
 		return hash, err
 	}
 
-	// calculate blurhash
-	if hi.calcBlurHash {
-		bh, err := blurhash.Encode(4, 3, img)
-		if err != nil {
-			return hash, err
-		}
-		hash.BlurHash = bh
+	bh, err := blurhash.Encode(4, 3, img)
+	if err != nil {
+		return hash, err
 	}
+	hash.BlurHash = bh
 
-	return hash, err
+	return hash, nil
 }
 
 // ScanFiles reads media folder, detects namespaces & files and loads files into vfsHashes.
