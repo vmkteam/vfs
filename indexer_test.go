@@ -11,8 +11,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/vmkteam/embedlog"
 	"github.com/vmkteam/vfs/db"
+
+	"github.com/vmkteam/embedlog"
 )
 
 func Test_isHashFile(t *testing.T) {
